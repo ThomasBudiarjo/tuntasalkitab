@@ -1,0 +1,21 @@
+{{define "month_card"}}
+<div class="days-list">
+    {{range .Days}}
+    <div class="day-item {{if .Completed}}completed{{end}}" id="day-{{.DayOfYear}}">
+        <label class="day-label">
+            <input 
+                type="checkbox" 
+                class="day-checkbox"
+                {{if .Completed}}checked{{end}}
+                hx-post="/toggle/{{.DayOfYear}}"
+                hx-target="#day-{{.DayOfYear}}"
+                hx-swap="outerHTML"
+            >
+            <span class="day-number">{{.Day}}</span>
+            <span class="day-passage">{{.Passage}}</span>
+        </label>
+    </div>
+    {{end}}
+</div>
+{{end}}
+

@@ -1,0 +1,4 @@
+.env
+bible-tracker
+bible-tracker.db
+*.db
