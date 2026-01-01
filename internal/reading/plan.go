@@ -44,10 +44,11 @@ type MonthInfo struct {
 }
 
 type DayInfo struct {
-	Day       int
-	DayOfYear int
-	Passage   string
-	Completed bool
+	Day          int
+	DayOfYear    int
+	Passage      string
+	PassageLinks []PassageLink
+	Completed    bool
 }
 
 var monthNames = []string{
@@ -64,11 +65,13 @@ func GetMonthInfo(year, month int, completedDays map[int]bool) MonthInfo {
 	for d := 1; d <= numDays; d++ {
 		date := time.Date(year, time.Month(month), d, 0, 0, 0, 0, time.UTC)
 		dayOfYear := date.YearDay()
+		passage := GetPassageByDayOfYear(dayOfYear)
 		days[d-1] = DayInfo{
-			Day:       d,
-			DayOfYear: dayOfYear,
-			Passage:   GetPassageByDayOfYear(dayOfYear),
-			Completed: completedDays[dayOfYear],
+			Day:          d,
+			DayOfYear:    dayOfYear,
+			Passage:      passage,
+			PassageLinks: ParsePassages(passage),
+			Completed:    completedDays[dayOfYear],
 		}
 	}
 
