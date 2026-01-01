@@ -2,9 +2,9 @@
 <div class="tracker-card">
     <div class="card-header">
         <label for="month-select">Month:</label>
-        <select 
-            id="month-select" 
-            name="month" 
+        <select
+            id="month-select"
+            name="month"
             class="month-select"
             hx-get="/month"
             hx-target="#month-content"
@@ -23,9 +23,16 @@
             <option value="11" {{if eq .MonthInfo.Month 11}}selected{{end}}>November</option>
             <option value="12" {{if eq .MonthInfo.Month 12}}selected{{end}}>December</option>
         </select>
+        <div class="mode-toggle">
+            <label class="toggle-switch">
+                <input type="checkbox" id="mode-switch" onchange="toggleMode(this)">
+                <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label" id="mode-label">Link</span>
+        </div>
     </div>
 
-    <div id="month-content">
+    <div id="month-content" class="checklist-mode">
         {{template "month_card" .MonthInfo}}
     </div>
 </div>
@@ -38,5 +45,31 @@
         <div class="progress-fill" style="width: {{.ProgressPercent}}%"></div>
     </div>
 </div>
-{{end}}
 
+<script>
+function toggleMode(checkbox) {
+    var content = document.getElementById('month-content');
+    var label = document.getElementById('mode-label');
+    if (checkbox.checked) {
+        content.classList.remove('checklist-mode');
+        content.classList.add('link-mode');
+        label.textContent = 'Link';
+        localStorage.setItem('bibleTrackerMode', 'link');
+    } else {
+        content.classList.remove('link-mode');
+        content.classList.add('checklist-mode');
+        label.textContent = 'Check';
+        localStorage.setItem('bibleTrackerMode', 'checklist');
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    var savedMode = localStorage.getItem('bibleTrackerMode');
+    var checkbox = document.getElementById('mode-switch');
+    if (savedMode === 'link') {
+        checkbox.checked = true;
+        toggleMode(checkbox);
+    }
+});
+</script>
+{{end}}

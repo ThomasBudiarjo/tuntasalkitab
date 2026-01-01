@@ -1,8 +1,8 @@
 {{define "day_item"}}
 <div class="day-item {{if .Completed}}completed{{end}}" id="day-{{.DayOfYear}}">
-    <label class="day-label">
-        <input 
-            type="checkbox" 
+    <label class="day-label checklist-view">
+        <input
+            type="checkbox"
             class="day-checkbox"
             {{if .Completed}}checked{{end}}
             hx-post="/toggle/{{.DayOfYear}}"
@@ -12,6 +12,9 @@
         <span class="day-number">{{.Day}}</span>
         <span class="day-passage">{{.Passage}}</span>
     </label>
+    <div class="day-content link-view">
+        <span class="day-number">{{.Day}}</span>
+        <span class="day-passages">{{range $i, $link := .PassageLinks}}{{if $i}}; {{end}}<a href="{{$link.URL}}" target="_blank" rel="noopener" class="passage-link">{{$link.Text}}</a>{{end}}</span>
+    </div>
 </div>
 {{end}}
-

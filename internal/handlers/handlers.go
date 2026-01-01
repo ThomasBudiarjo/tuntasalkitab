@@ -112,12 +112,14 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 
 	year := reading.GetCurrentYear()
 	date := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, dayOfYear-1)
+	passage := reading.GetPassageByDayOfYear(dayOfYear)
 
 	dayInfo := reading.DayInfo{
-		Day:       date.Day(),
-		DayOfYear: dayOfYear,
-		Passage:   reading.GetPassageByDayOfYear(dayOfYear),
-		Completed: newCompleted,
+		Day:          date.Day(),
+		DayOfYear:    dayOfYear,
+		Passage:      passage,
+		PassageLinks: reading.ParsePassages(passage),
+		Completed:    newCompleted,
 	}
 
 	h.templates.ExecuteTemplate(w, "day_item", dayInfo)
