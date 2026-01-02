@@ -95,6 +95,10 @@
       var closeModalBtn = document.getElementById('close-modal-btn');
       var backdrop = modal ? modal.querySelector('.modal-backdrop') : null;
 
+      if (loginBtn) {
+        loginBtn.removeAttribute('href');
+      }
+
       function showModal() {
         if (modal) {
           modal.style.display = 'flex';
