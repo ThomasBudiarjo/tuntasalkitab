@@ -26,16 +26,147 @@
           <span class="user-name">{{.User.Name.String}}</span>
           <a href="/logout" class="btn btn-secondary">Sign Out</a>
           {{else}}
-          <a href="/auth/google" class="btn btn-primary">Sign in with Google</a>
+          <a href="/auth/google" class="btn btn-primary" id="google-login-btn">Sign in with Google</a>
           {{end}}
         </div>
       </div>
     </header>
+
+    <!-- WebView Warning Modal -->
+    <div id="webview-modal" class="modal" style="display: none;">
+      <div class="modal-backdrop"></div>
+      <div class="modal-content">
+        <div class="modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <path d="M12 8v4M12 16h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2 class="modal-title">Tidak Bisa Login Di Sini</h2>
+        <p class="modal-message">
+          Login Google tidak bisa digunakan di browser ini.
+          Silakan buka Tuntas Alkitab di browser biasa (Chrome, Safari, dll.) untuk login.
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" id="open-browser-btn">Buka di Browser</button>
+          <button type="button" class="btn btn-secondary" id="close-modal-btn">Lanjut Tanpa Login</button>
+        </div>
+      </div>
+    </div>
 
     <main class="container">{{template "content" .}}</main>
 
     <footer class="footer">
       <p>Menamatkan Alkitab dalam satu tahun</p>
     </footer>
+
+    <script>
+    (function() {
+      // WebView detection patterns
+      var webViewPatterns = [
+        /FBAN|FBAV/i,              // Facebook
+        /Instagram|Barcelona/i,    // Instagram & Threads
+        /BytedanceWebview|TikTok/i,// TikTok
+        /Line\//i,                 // Line
+        /Twitter/i,                // Twitter/X
+        /Snapchat/i,               // Snapchat
+        /Pinterest/i,              // Pinterest
+        /LinkedInApp/i,            // LinkedIn
+        /MicroMessenger/i,         // WeChat
+        /\bwv\b|WebView/i,         // Android WebView (generic)
+        /AppleWebKit(?!.*Safari)|GSA\//i  // iOS WebView
+      ];
+
+      var ua = navigator.userAgent;
+      var isWebView = webViewPatterns.some(function(pattern) {
+        return pattern.test(ua);
+      });
+
+      // Only set up interception if in WebView
+      if (!isWebView) return;
+
+      var isAndroid = /Android/i.test(ua);
+      var isIOS = /iPhone|iPad|iPod/i.test(ua);
+      var currentUrl = window.location.href;
+
+      var loginBtn = document.getElementById('google-login-btn');
+      var modal = document.getElementById('webview-modal');
+      var openBrowserBtn = document.getElementById('open-browser-btn');
+      var closeModalBtn = document.getElementById('close-modal-btn');
+      var backdrop = modal ? modal.querySelector('.modal-backdrop') : null;
+
+      if (loginBtn) {
+        loginBtn.removeAttribute('href');
+      }
+
+      function showModal() {
+        if (modal) {
+          modal.style.display = 'flex';
+          document.body.style.overflow = 'hidden';
+        }
+      }
+
+      function hideModal() {
+        if (modal) {
+          modal.style.display = 'none';
+          document.body.style.overflow = '';
+        }
+      }
+
+      function openInExternalBrowser(url) {
+        if (isAndroid) {
+          // Android: Use intent:// scheme to open in default browser
+          var intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
+            '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+          window.location.href = intentUrl;
+        } else if (isIOS) {
+          // iOS: Copy URL to clipboard and instruct user
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function() {
+              alert('Link disalin! Buka Safari dan paste URL untuk melanjutkan.');
+            }).catch(function() {
+              prompt('Salin link ini dan buka di Safari:', url);
+            });
+          } else {
+            prompt('Salin link ini dan buka di Safari:', url);
+          }
+        } else {
+          // Fallback
+          var newWindow = window.open(url, '_blank');
+          if (!newWindow) {
+            prompt('Salin link ini dan buka di browser:', url);
+          }
+        }
+      }
+
+      if (loginBtn) {
+        loginBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          showModal();
+        });
+      }
+
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', hideModal);
+      }
+
+      if (backdrop) {
+        backdrop.addEventListener('click', hideModal);
+      }
+
+      if (openBrowserBtn) {
+        openBrowserBtn.addEventListener('click', function() {
+          openInExternalBrowser(currentUrl);
+        });
+      }
+
+      // Close on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          hideModal();
+        }
+      });
+    })();
+    </script>
   </body>
 </html>
