@@ -4,9 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Tuntas Alkitab</title>
+    <meta name="csrf-token" content="{{.CSRFToken}}" />
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="stylesheet" href="/static/style.css" />
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {
+        var token = document.querySelector('meta[name="csrf-token"]').content;
+        document.body.addEventListener('htmx:configRequest', function(e) {
+          e.detail.headers['X-CSRF-Token'] = token;
+        });
+      });
+    </script>
   </head>
   <body>
     <header class="header">
@@ -24,7 +33,9 @@
         <div class="auth-section">
           {{if .User.GoogleID.Valid}}
           <span class="user-name">{{.User.Name.String}}</span>
-          <a href="/logout" class="btn btn-secondary">Sign Out</a>
+          <form action="/logout" method="POST" style="display: inline;">
+            <button type="submit" class="btn btn-secondary">Sign Out</button>
+          </form>
           {{else}}
           <a href="/auth/google" class="btn btn-primary" id="google-login-btn">Sign in with Google</a>
           {{end}}

@@ -38,7 +38,25 @@ ON CONFLICT(user_id, day_of_year) DO UPDATE SET
 SELECT COUNT(*) FROM reading_progress WHERE user_id = ? AND completed = TRUE;
 
 -- name: MergeUserProgress :exec
-UPDATE reading_progress SET user_id = ? WHERE user_id = ?;
+-- Merge progress from source user to target user with conflict resolution.
+-- On conflict: prefer completed=true, keep latest completed_at.
+INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at)
+SELECT ?, day_of_year, completed, completed_at
+FROM reading_progress
+WHERE user_id = ?
+ON CONFLICT(user_id, day_of_year) DO UPDATE SET
+    completed = CASE 
+        WHEN excluded.completed = 1 THEN 1 
+        ELSE reading_progress.completed 
+    END,
+    completed_at = CASE 
+        WHEN excluded.completed = 1 AND (reading_progress.completed = 0 OR excluded.completed_at > reading_progress.completed_at)
+        THEN excluded.completed_at
+        ELSE reading_progress.completed_at
+    END;
+
+-- name: DeleteUserProgress :exec
+DELETE FROM reading_progress WHERE user_id = ?;
 
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = ?;

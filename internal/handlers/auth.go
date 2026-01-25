@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -13,6 +15,12 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+func generateRandomState() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
 
 type AuthHandler struct {
 	queries     *db.Queries
@@ -42,12 +50,26 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	state := "random-state" // In production, use a secure random string
+	session, _ := h.store.Get(r, "bible-tracker")
+	state := generateRandomState()
+	session.Values["oauth_state"] = state
+	session.Save(r, w)
+
 	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
 func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
+	session, _ := h.store.Get(r, "bible-tracker")
+
+	state := r.URL.Query().Get("state")
+	expectedState, ok := session.Values["oauth_state"].(string)
+	if !ok || state != expectedState {
+		http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
+		return
+	}
+	delete(session.Values, "oauth_state")
+
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
@@ -77,8 +99,6 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to decode user info", http.StatusInternalServerError)
 		return
 	}
-
-	session, _ := h.store.Get(r, "bible-tracker")
 
 	existingUser, err := h.queries.GetUserByGoogleID(r.Context(), sql.NullString{String: userInfo.ID, Valid: true})
 	if err == nil {

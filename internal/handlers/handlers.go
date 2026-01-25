@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"bible-tracker/internal/db"
+	"bible-tracker/internal/middleware"
 	"bible-tracker/internal/reading"
 
 	"github.com/go-chi/chi/v5"
@@ -31,6 +32,7 @@ type PageData struct {
 	MonthInfo       reading.MonthInfo
 	CompletedCount  int64
 	ProgressPercent int
+	CSRFToken       string
 }
 
 func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
@@ -48,6 +50,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		MonthInfo:       monthInfo,
 		CompletedCount:  completedCount,
 		ProgressPercent: int(completedCount * 100 / 365),
+		CSRFToken:       middleware.GetCSRFToken(r),
 	}
 
 	h.templates.ExecuteTemplate(w, "layout.html", data)

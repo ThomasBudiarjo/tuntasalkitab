@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"bible-tracker/internal/db"
 	"bible-tracker/internal/handlers"
@@ -48,16 +52,24 @@ func main() {
 
 	queries := db.New(sqlDB)
 
+	appEnv := os.Getenv("APP_ENV")
+	isDev := appEnv == "" || appEnv == "development"
+
 	sessionSecret := os.Getenv("SESSION_SECRET")
 	if sessionSecret == "" {
-		sessionSecret = "bible-tracker-secret-key-change-in-production"
+		if isDev {
+			sessionSecret = "bible-tracker-dev-secret-key"
+		} else {
+			log.Fatal("SESSION_SECRET environment variable is required in production")
+		}
 	}
 	store := sessions.NewCookieStore([]byte(sessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
-		MaxAge:   86400 * 365, // 1 year
+		MaxAge:   86400 * 30, // 30 days
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   !isDev,
 	}
 
 	templates, err := template.ParseFS(templatesFS, "templates/*.html", "templates/partials/*.html")
@@ -68,6 +80,7 @@ func main() {
 	h := handlers.New(queries, templates)
 	authHandler := handlers.NewAuthHandler(queries, store)
 	sessionMiddleware := middleware.NewSessionMiddleware(store, queries)
+	csrfMiddleware := middleware.NewCSRFMiddleware(store)
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
@@ -78,6 +91,7 @@ func main() {
 
 	r.Group(func(r chi.Router) {
 		r.Use(sessionMiddleware.Handler)
+		r.Use(csrfMiddleware.Handler)
 
 		r.Get("/", h.Index)
 		r.Get("/month", h.GetMonth)
@@ -85,7 +99,7 @@ func main() {
 
 		r.Get("/auth/google", authHandler.GoogleLogin)
 		r.Get("/auth/google/callback", authHandler.GoogleCallback)
-		r.Get("/logout", authHandler.Logout)
+		r.Post("/logout", authHandler.Logout)
 	})
 
 	port := os.Getenv("PORT")
@@ -93,9 +107,32 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Server starting on http://localhost:%s", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatal("Server failed:", err)
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
+
+	go func() {
+		log.Printf("Server starting on http://localhost:%s", port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Server failed:", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+	log.Println("Server exited gracefully")
 }
 
