@@ -81,6 +81,7 @@ func main() {
 
 		r.Get("/", h.Index)
 		r.Get("/month", h.GetMonth)
+		r.Get("/missed", h.GetMissedDays)
 		r.Post("/toggle/{day}", h.ToggleDay)
 
 		r.Get("/auth/google", authHandler.GoogleLogin)
