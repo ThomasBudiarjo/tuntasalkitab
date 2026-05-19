@@ -33,7 +33,9 @@ body {
     background: var(--color-bg);
     color: var(--color-text);
     line-height: 1.5;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -127,6 +129,10 @@ body {
     padding: 0.75rem;
     flex: 1;
     width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Tracker Card */
@@ -135,6 +141,10 @@ body {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
     overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .card-header {
@@ -144,6 +154,7 @@ body {
     padding: 0.75rem;
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
     color: white;
+    flex-shrink: 0;
 }
 
 .card-header label {
@@ -173,9 +184,22 @@ body {
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
+/* #month-content fills the card and lets days-list scroll */
+#month-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Days List - Compact */
 .days-list {
     padding: 0.25rem 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .day-item {
@@ -243,6 +267,7 @@ body {
     box-shadow: var(--shadow-md);
     padding: 0.75rem;
     margin-top: 0.75rem;
+    flex-shrink: 0;
 }
 
 .progress-header {
@@ -270,6 +295,126 @@ body {
     background: linear-gradient(90deg, var(--color-success), var(--color-primary));
     border-radius: 9999px;
     transition: width 0.3s ease;
+}
+
+/* Missed Readings Accordion */
+.missed-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    margin-top: 0.75rem;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.missed-summary {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+    color: white;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.missed-summary::-webkit-details-marker {
+    display: none;
+}
+
+.missed-summary-text {
+    flex: 1;
+}
+
+.missed-badge {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+}
+
+.missed-chevron {
+    font-size: 1rem;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+
+details.missed-card[open] .missed-chevron {
+    transform: rotate(180deg);
+}
+
+.missed-content {
+    padding: 0.25rem 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.missed-month-section {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.missed-month-section:last-child {
+    border-bottom: none;
+}
+
+.missed-month-name {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.75rem 0.25rem;
+}
+
+.missed-day-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.75rem;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.missed-day-row:last-child {
+    border-bottom: none;
+}
+
+.missed-day-num {
+    font-weight: 600;
+    color: var(--color-primary);
+    min-width: 1.5rem;
+    font-size: 0.8125rem;
+}
+
+.missed-day-passage {
+    flex: 1;
+    color: var(--color-text);
+    font-size: 0.8125rem;
+}
+
+.btn-done {
+    background: var(--color-success);
+    color: white;
+    font-size: 0.6875rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius-sm);
+    flex-shrink: 0;
+}
+
+.btn-done:hover {
+    background: #047857;
+}
+
+.missed-empty {
+    padding: 1rem 0.75rem;
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    text-align: center;
 }
 
 /* Footer - Compact */

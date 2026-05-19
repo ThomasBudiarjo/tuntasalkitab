@@ -1,0 +1,23 @@
+{{define "missed_days"}}
+{{if .}}
+  {{range .}}
+  <div class="missed-month-section">
+    <div class="missed-month-name">{{.MonthName}}</div>
+    {{range .Days}}
+    <div class="missed-day-row" id="missed-{{.DayOfYear}}">
+      <span class="missed-day-num">{{.Day}}</span>
+      <span class="missed-day-passage">{{.Passage}}</span>
+      <button
+        class="btn btn-done"
+        hx-post="/toggle/{{.DayOfYear}}"
+        hx-target="#missed-{{.DayOfYear}}"
+        hx-swap="delete"
+      >Done</button>
+    </div>
+    {{end}}
+  </div>
+  {{end}}
+{{else}}
+  <div class="missed-empty">All caught up — no missed readings!</div>
+{{end}}
+{{end}}

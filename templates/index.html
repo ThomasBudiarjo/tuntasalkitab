@@ -71,6 +71,23 @@
   </div>
 </div>
 
+{{if gt .MissedCount 0}}
+<details class="missed-card">
+  <summary
+    class="missed-summary"
+    hx-get="/missed"
+    hx-trigger="click once"
+    hx-target="#missed-content"
+    hx-swap="innerHTML"
+  >
+    <span class="missed-summary-text">Missed Readings</span>
+    <span class="missed-badge">{{.MissedCount}}</span>
+    <span class="missed-chevron">&#9662;</span>
+  </summary>
+  <div id="missed-content" class="missed-content"></div>
+</details>
+{{end}}
+
 <script>
   function toggleMode(checkbox) {
     var content = document.getElementById("month-content");
