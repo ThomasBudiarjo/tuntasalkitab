@@ -33,7 +33,9 @@ body {
     background: var(--color-bg);
     color: var(--color-text);
     line-height: 1.5;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
 }
@@ -127,6 +129,10 @@ body {
     padding: 0.75rem;
     flex: 1;
     width: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 /* Tracker Card */
@@ -135,6 +141,10 @@ body {
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-md);
     overflow: hidden;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .card-header {
@@ -144,6 +154,7 @@ body {
     padding: 0.75rem;
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-hover) 100%);
     color: white;
+    flex-shrink: 0;
 }
 
 .card-header label {
@@ -173,9 +184,22 @@ body {
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3);
 }
 
+/* #month-content fills the card and lets days-list scroll */
+#month-content {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
 /* Days List - Compact */
 .days-list {
     padding: 0.25rem 0;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .day-item {
@@ -243,6 +267,7 @@ body {
     box-shadow: var(--shadow-md);
     padding: 0.75rem;
     margin-top: 0.75rem;
+    flex-shrink: 0;
 }
 
 .progress-header {
@@ -279,6 +304,7 @@ body {
     box-shadow: var(--shadow-md);
     margin-top: 0.75rem;
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .missed-summary {
@@ -324,6 +350,9 @@ details.missed-card[open] .missed-chevron {
 
 .missed-content {
     padding: 0.25rem 0;
+    max-height: 55vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .missed-month-section {
