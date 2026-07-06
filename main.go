@@ -19,8 +19,8 @@ import (
 	chiMiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/sessions"
 	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
 	_ "github.com/tursodatabase/libsql-client-go/libsql"
+	_ "modernc.org/sqlite"
 )
 
 //go:embed templates/*.html templates/partials/*.html
@@ -38,7 +38,7 @@ const (
 	tursoAuthTokenEnv   = "TURSO_AUTH_TOKEN"
 
 	defaultDatabasePath = "bible-tracker.db"
-	sqliteDriver        = "sqlite3"
+	sqliteDriver        = "sqlite"
 	libSQLDriver        = "libsql"
 )
 
