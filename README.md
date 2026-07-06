@@ -9,7 +9,7 @@ A simple web application to track your daily Bible reading progress through the 
 - **Progress Tracking**: Visual progress bar showing yearly completion
 - **Strikethrough**: Completed readings are struck through for clarity
 - **Optional Google Sign-in**: Sync your progress across devices
-- **SQLite Database**: Lightweight, file-based storage
+- **SQLite/libSQL Database**: Local SQLite by default, with optional Turso/libSQL configuration
 - **HTMX**: Fast, dynamic updates without page reloads
 
 ## Quick Start
@@ -31,8 +31,19 @@ A simple web application to track your daily Bible reading progress through the 
 
 4. **Open in browser:**
    ```
-   http://localhost:8080
+   http://localhost:8493
    ```
+
+## Turso Setup (Optional)
+
+Local SQLite is used when the Turso variables are empty. To use Turso/libSQL instead, create a Turso database and auth token, then set both variables in `.env`:
+
+```dotenv
+TURSO_DATABASE_URL=libsql://your-database-your-org.turso.io
+TURSO_AUTH_TOKEN=your-turso-auth-token
+```
+
+When `TURSO_DATABASE_URL` is set, the application ignores `DATABASE_PATH` and opens the database with the `libsql` driver.
 
 ## Google OAuth Setup (Optional)
 
@@ -43,7 +54,7 @@ To enable Google Sign-in:
 3. Enable the Google+ API
 4. Go to Credentials → Create Credentials → OAuth Client ID
 5. Select "Web application"
-6. Add `http://localhost:8080/auth/google/callback` to Authorized redirect URIs
+6. Add `http://localhost:8493/auth/google/callback` to Authorized redirect URIs
 7. Copy the Client ID and Client Secret to your `.env` file
 
 ## Project Structure
@@ -90,4 +101,3 @@ go build -o bible-tracker .
 ## License
 
 MIT
-
