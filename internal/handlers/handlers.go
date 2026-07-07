@@ -30,6 +30,7 @@ type PageData struct {
 	User            db.User
 	MonthInfo       reading.MonthInfo
 	CompletedCount  int64
+	RemainingDays   int64
 	ProgressPercent int
 	MissedCount     int
 }
@@ -63,6 +64,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		User:            user,
 		MonthInfo:       monthInfo,
 		CompletedCount:  completedCount,
+		RemainingDays:   365 - completedCount,
 		ProgressPercent: int(completedCount * 100 / 365),
 		MissedCount:     missedCount,
 	}
