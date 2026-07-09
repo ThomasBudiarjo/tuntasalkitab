@@ -113,5 +113,28 @@
       toggleMode(checkbox);
     }
   });
+
+  function refreshMonth() {
+    var select = document.getElementById("month-select");
+    htmx.ajax("GET", "/month?month=" + select.value, {
+      target: "#month-content",
+      swap: "innerHTML",
+    });
+  }
+
+  // Browsers without tab support (e.g. Kindle) open passage links in the
+  // same tab; navigating back restores stale HTML from before any HTMX
+  // toggles. Re-fetch the month view whenever the page is shown via
+  // back/forward navigation so completed days stay struck through.
+  window.addEventListener("pageshow", function (e) {
+    var navEntry =
+      performance.getEntriesByType &&
+      performance.getEntriesByType("navigation")[0];
+    var isBackForward =
+      e.persisted ||
+      (navEntry && navEntry.type === "back_forward") ||
+      (performance.navigation && performance.navigation.type === 2);
+    if (isBackForward) refreshMonth();
+  });
 </script>
 {{end}}

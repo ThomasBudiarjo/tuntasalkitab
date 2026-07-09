@@ -67,6 +67,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		MissedCount:     missedCount,
 	}
 
+	setNoStore(w)
 	h.templates.ExecuteTemplate(w, "layout.html", data)
 }
 
@@ -83,6 +84,7 @@ func (h *Handler) GetMonth(w http.ResponseWriter, r *http.Request) {
 	completedDays := h.getCompletedDaysMap(r.Context(), userID)
 	monthInfo := reading.GetMonthInfo(year, month, completedDays)
 
+	setNoStore(w)
 	h.templates.ExecuteTemplate(w, "month_card", monthInfo)
 }
 
@@ -139,6 +141,7 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		Completed:    newCompleted,
 	}
 
+	setNoStore(w)
 	h.templates.ExecuteTemplate(w, "day_item", dayInfo)
 }
 
@@ -192,7 +195,15 @@ func (h *Handler) GetMissedDays(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	setNoStore(w)
 	h.templates.ExecuteTemplate(w, "missed_days", months)
+}
+
+// setNoStore prevents browsers from serving stale personalized HTML from the
+// HTTP cache, e.g. when navigating back from a passage link on browsers
+// without tab support (Kindle).
+func setNoStore(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
 }
 
 func getUserIDFromContext(r *http.Request) int64 {
