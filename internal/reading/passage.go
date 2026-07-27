@@ -84,6 +84,16 @@ var bookAbbreviations = map[string]string{
 	"Why.":  "Wahyu",
 }
 
+// Books with only one chapter. alkitab.sabda.org needs an explicit chapter
+// number, so a bare book name returns an empty result page.
+var singleChapterBooks = map[string]bool{
+	"Obaja":     true,
+	"Filemon":   true,
+	"2 Yohanes": true,
+	"3 Yohanes": true,
+	"Yudas":     true,
+}
+
 // ParsePassages splits a passage string and generates URLs for each
 func ParsePassages(passageStr string) []PassageLink {
 	if passageStr == "" {
@@ -99,7 +109,7 @@ func ParsePassages(passageStr string) []PassageLink {
 			continue
 		}
 
-		fullName := expandAbbreviation(part)
+		fullName := addDefaultChapter(expandAbbreviation(part))
 		links = append(links, PassageLink{
 			Text: part,
 			URL:  generateAlkitabURL(fullName),
@@ -117,6 +127,17 @@ func expandAbbreviation(passage string) string {
 		}
 	}
 	// Return as-is if no abbreviation found
+	return passage
+}
+
+// addDefaultChapter appends chapter 1 to a single-chapter book that carries no
+// reference of its own, e.g. "Obaja" becomes "Obaja 1". A book that already has
+// a chapter or verse reference is left untouched; sabda resolves verse-only
+// references such as "Yudas 3-5" on its own.
+func addDefaultChapter(passage string) string {
+	if singleChapterBooks[strings.TrimSpace(passage)] {
+		return strings.TrimSpace(passage) + " 1"
+	}
 	return passage
 }
 
