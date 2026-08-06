@@ -27,11 +27,29 @@ func New(queries *db.Queries, templates *template.Template) *Handler {
 }
 
 type PageData struct {
-	User            db.User
-	MonthInfo       reading.MonthInfo
+	User        db.User
+	MonthInfo   reading.MonthInfo
+	Today       TodayCardData
+	Progress    ProgressCardData
+	MissedCount int
+}
+
+type TodayCardData struct {
+	Day       reading.DayInfo
+	DateLabel string
+	Streak    int
+	OOB       bool
+}
+
+type ProgressCardData struct {
 	CompletedCount  int64
 	ProgressPercent int
-	MissedCount     int
+	OOB             bool
+}
+
+type MissedBadgeData struct {
+	Count int
+	OOB   bool
 }
 
 type MissedMonth struct {
@@ -51,20 +69,12 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 	completedCount, _ := h.queries.CountCompletedDays(r.Context(), userID)
 	user, _ := h.queries.GetUserByID(r.Context(), userID)
 
-	todayDOY := now.YearDay()
-	missedCount := 0
-	for doy := 1; doy <= todayDOY; doy++ {
-		if !completedDays[doy] {
-			missedCount++
-		}
-	}
-
 	data := PageData{
-		User:            user,
-		MonthInfo:       monthInfo,
-		CompletedCount:  completedCount,
-		ProgressPercent: int(completedCount * 100 / 365),
-		MissedCount:     missedCount,
+		User:        user,
+		MonthInfo:   monthInfo,
+		Today:       makeTodayCardData(now, completedDays, false),
+		Progress:    makeProgressCardData(completedCount, false),
+		MissedCount: countMissedDays(completedDays, now.YearDay()),
 	}
 
 	setNoStore(w)
@@ -129,7 +139,10 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	year := reading.GetCurrentYear()
+	now := time.Now()
+	completedDays := h.getCompletedDaysMap(r.Context(), userID)
+	completedCount, _ := h.queries.CountCompletedDays(r.Context(), userID)
+	year := now.Year()
 	date := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, dayOfYear-1)
 	passage := reading.GetPassageByDayOfYear(dayOfYear)
 
@@ -142,7 +155,70 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setNoStore(w)
-	h.templates.ExecuteTemplate(w, "day_item", dayInfo)
+	viewToday := r.URL.Query().Get("view") == "today"
+	if viewToday {
+		h.templates.ExecuteTemplate(w, "today_card", makeTodayCardData(now, completedDays, false))
+	} else {
+		h.templates.ExecuteTemplate(w, "day_item", dayInfo)
+	}
+
+	if !viewToday {
+		h.templates.ExecuteTemplate(w, "today_card", makeTodayCardData(now, completedDays, true))
+	}
+	h.templates.ExecuteTemplate(w, "progress_card", makeProgressCardData(completedCount, true))
+	h.templates.ExecuteTemplate(w, "missed_badge", MissedBadgeData{
+		Count: countMissedDays(completedDays, now.YearDay()),
+		OOB:   true,
+	})
+}
+
+func makeTodayCardData(now time.Time, completedDays map[int]bool, oob bool) TodayCardData {
+	dayOfYear := now.YearDay()
+	passage := reading.GetPassageByDayOfYear(dayOfYear)
+	return TodayCardData{
+		Day: reading.DayInfo{
+			Day:          now.Day(),
+			DayOfYear:    dayOfYear,
+			Passage:      passage,
+			PassageLinks: reading.ParsePassages(passage),
+			Completed:    completedDays[dayOfYear],
+		},
+		DateLabel: now.Format("Mon, Jan 2"),
+		Streak:    calculateStreak(completedDays, dayOfYear),
+		OOB:       oob,
+	}
+}
+
+func makeProgressCardData(completedCount int64, oob bool) ProgressCardData {
+	return ProgressCardData{
+		CompletedCount:  completedCount,
+		ProgressPercent: int(completedCount * 100 / 365),
+		OOB:             oob,
+	}
+}
+
+// calculateStreak keeps yesterday's streak active until today's reading is
+// completed, then includes today in the run.
+func calculateStreak(completedDays map[int]bool, today int) int {
+	if !completedDays[today] {
+		today--
+	}
+
+	streak := 0
+	for day := today; day >= 1 && completedDays[day]; day-- {
+		streak++
+	}
+	return streak
+}
+
+func countMissedDays(completedDays map[int]bool, today int) int {
+	missed := 0
+	for day := 1; day <= today; day++ {
+		if !completedDays[day] {
+			missed++
+		}
+	}
+	return missed
 }
 
 func (h *Handler) getCompletedDaysMap(ctx context.Context, userID int64) map[int]bool {

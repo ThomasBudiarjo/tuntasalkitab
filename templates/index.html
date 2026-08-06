@@ -1,4 +1,45 @@
+{{define "today_card"}}
+<section id="today-card" class="today-card {{if .Day.Completed}}completed{{end}}" {{if .OOB}}hx-swap-oob="outerHTML"{{end}}>
+  <div class="today-copy">
+    <div class="today-heading">
+      <span class="today-eyebrow">Today</span>
+      <span class="today-date">{{.DateLabel}}</span>
+    </div>
+    <div class="today-details">
+      <span class="today-passages">{{range $i, $link := .Day.PassageLinks}}{{if $i}}; {{end}}<a href="{{$link.URL}}" target="_blank" rel="noopener" class="passage-link">{{$link.Text}}</a>{{end}}</span>
+      <span class="today-streak">&#128293; {{.Streak}}</span>
+    </div>
+  </div>
+  <button
+    type="button"
+    class="btn today-done {{if .Day.Completed}}btn-completed{{else}}btn-primary{{end}}"
+    hx-post="/toggle/{{.Day.DayOfYear}}?view=today"
+    hx-target="#today-card"
+    hx-swap="outerHTML"
+    hx-on::after-request="refreshMonth()"
+  >{{if .Day.Completed}}&#10003; Done{{else}}Done{{end}}</button>
+</section>
+{{end}}
+
+{{define "progress_card"}}
+<div id="progress-card" class="progress-card" {{if .OOB}}hx-swap-oob="outerHTML"{{end}}>
+  <div class="progress-header">
+    <span class="progress-text"
+      >Progress:
+      <strong>{{.CompletedCount}}/365</strong> ({{.ProgressPercent}}%)</span
+    >
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" style="width: {{.ProgressPercent}}%"></div>
+  </div>
+</div>
+{{end}}
+
+{{define "missed_badge"}}<span id="missed-badge" class="missed-badge" {{if .OOB}}hx-swap-oob="outerHTML"{{end}}>{{.Count}}</span>{{end}}
+
 {{define "content"}}
+{{template "today_card" .Today}}
+
 <div class="tracker-card">
   <div class="card-header">
     <label for="month-select">Month:</label>
@@ -59,19 +100,8 @@
   </div>
 </div>
 
-<div class="progress-card">
-  <div class="progress-header">
-    <span class="progress-text"
-      >Progress:
-      <strong>{{.CompletedCount}}/365</strong> ({{.ProgressPercent}}%)</span
-    >
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" style="width: {{.ProgressPercent}}%"></div>
-  </div>
-</div>
+{{template "progress_card" .Progress}}
 
-{{if gt .MissedCount 0}}
 <details class="missed-card">
   <summary
     class="missed-summary"
@@ -81,12 +111,11 @@
     hx-swap="innerHTML"
   >
     <span class="missed-summary-text">Missed Readings</span>
-    <span class="missed-badge">{{.MissedCount}}</span>
+    <span id="missed-badge" class="missed-badge">{{.MissedCount}}</span>
     <span class="missed-chevron">&#9662;</span>
   </summary>
   <div id="missed-content" class="missed-content"></div>
 </details>
-{{end}}
 
 <script>
   function toggleMode(checkbox) {

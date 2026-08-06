@@ -5,6 +5,7 @@ A simple web application to track your daily Bible reading progress through the 
 ## Features
 
 - **365-Day Reading Plan**: Sequential reading from Genesis to Revelation
+- **Today's Reading & Streak**: Jump straight into today's passages and keep a daily reading streak
 - **Monthly View**: Clean checklist interface organized by month
 - **Progress Tracking**: Visual progress bar showing yearly completion
 - **Strikethrough**: Completed readings are struck through for clarity
