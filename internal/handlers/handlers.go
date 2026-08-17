@@ -46,12 +46,18 @@ type Announcement struct {
 	Fixes []AnnouncementFix
 }
 
-// AnnouncementFix is one corrected day in the reading plan.
+// AnnouncementFix is one corrected day in the reading plan. Now and Missed
+// carry their own sabda URLs so a reader who already passed the day can open
+// the corrected reading, or just the verses that were skipped, straight from
+// the notice.
 type AnnouncementFix struct {
 	DayOfYear int
 	Date      string
 	Was       string
 	Now       string
+	NowURL    string
+	Missed    string
+	MissedURL string
 	Note      string
 }
 
@@ -72,17 +78,33 @@ func planFixAnnouncement(year int) Announcement {
 				Date:      formatDayOfYear(year, 195),
 				Was:       "Yl. 2:12-23",
 				Now:       "Yl. 2:12-32",
-				Note:      "Salah ketik angka, membuat Yoel 2:24-32 tidak pernah terbaca sepanjang tahun.",
+				NowURL:    passageURL("Yl. 2:12-32"),
+				Missed:    "Yoel 2:24-32",
+				MissedURL: passageURL("Yl. 2:24-32"),
+				Note:      "Salah ketik angka; sembilan ayat tidak pernah terbaca sepanjang tahun.",
 			},
 			{
 				DayOfYear: 241,
 				Date:      formatDayOfYear(year, 241),
 				Was:       "Yoh. 8:1-20",
 				Now:       "Yoh. 7:53-8:20",
-				Note:      "Yohanes 7:53 terlewat di peralihan hari; kini menyatu dengan perikopnya.",
+				NowURL:    passageURL("Yoh. 7:53-8:20"),
+				Missed:    "Yohanes 7:53",
+				MissedURL: passageURL("Yoh. 7:53"),
+				Note:      "Terlewat di peralihan hari; kini menyatu dengan perikopnya.",
 			},
 		},
 	}
+}
+
+// passageURL resolves a plan-style reference to its sabda link using the same
+// expansion the day rows use, so the notice and the tracker never drift apart.
+func passageURL(ref string) string {
+	links := reading.ParsePassages(ref)
+	if len(links) == 0 {
+		return ""
+	}
+	return links[0].URL
 }
 
 func formatDayOfYear(year, dayOfYear int) string {

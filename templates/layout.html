@@ -91,15 +91,23 @@
               {{.Date}} <span class="announcement-doy">hari ke-{{.DayOfYear}}</span>
             </span>
             <span class="announcement-change">
-              <s>{{.Was}}</s> &rarr; <strong>{{.Now}}</strong>
+              <s>{{.Was}}</s> &rarr;
+              <a href="{{.NowURL}}" target="_blank" rel="noopener" class="passage-link">{{.Now}}</a>
             </span>
             <span class="announcement-note">{{.Note}}</span>
+            <span class="announcement-missed">
+              Yang terlewat:
+              <a href="{{.MissedURL}}" target="_blank" rel="noopener" class="passage-link">{{.Missed}}</a>
+            </span>
           </li>
           {{end}}
         </ul>
         <div class="modal-actions">
-          <button type="button" class="btn btn-primary" id="announcement-dismiss">
+          <button type="button" class="btn btn-primary" id="announcement-close">
             Mengerti
+          </button>
+          <button type="button" class="btn btn-secondary" id="announcement-suppress">
+            Jangan Tampilkan Lagi
           </button>
         </div>
       </div>
@@ -141,7 +149,8 @@
       if (!bar || !modal) return;
 
       var backdrop = modal.querySelector('.modal-backdrop');
-      var dismissBtn = document.getElementById('announcement-dismiss');
+      var closeBtn = document.getElementById('announcement-close');
+      var suppressBtn = document.getElementById('announcement-suppress');
 
       function openModal() {
         modal.style.display = 'flex';
@@ -153,9 +162,10 @@
         document.body.style.overflow = '';
       }
 
-      // Only "Mengerti" retires the notice. Closing via backdrop or Escape
-      // leaves the bar in place so it can be opened again.
-      function dismiss() {
+      // Only "Jangan Tampilkan Lagi" retires the notice. "Mengerti", the
+      // backdrop and Escape merely close the modal, so the bar stays available
+      // for anyone who later forgets which two days changed.
+      function suppress() {
         closeModal();
         bar.style.display = 'none';
         try {
@@ -166,7 +176,8 @@
       }
 
       bar.addEventListener('click', openModal);
-      if (dismissBtn) dismissBtn.addEventListener('click', dismiss);
+      if (closeBtn) closeBtn.addEventListener('click', closeModal);
+      if (suppressBtn) suppressBtn.addEventListener('click', suppress);
       if (backdrop) backdrop.addEventListener('click', closeModal);
       document.addEventListener('keydown', function (e) {
         if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
