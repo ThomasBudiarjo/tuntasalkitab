@@ -32,6 +32,62 @@ type PageData struct {
 	CompletedCount  int64
 	ProgressPercent int
 	MissedCount     int
+	Announcement    Announcement
+}
+
+// announcementID is stored client-side once the reader dismisses the notice.
+// Bump it whenever the announcement content changes so dismissed clients see
+// the new one.
+const announcementID = "plan-fix-1"
+
+// Announcement is the notice shown above the tracker.
+type Announcement struct {
+	ID    string
+	Fixes []AnnouncementFix
+}
+
+// AnnouncementFix is one corrected day in the reading plan.
+type AnnouncementFix struct {
+	DayOfYear int
+	Date      string
+	Was       string
+	Now       string
+	Note      string
+}
+
+var indonesianMonths = [...]string{
+	"Januari", "Februari", "Maret", "April", "Mei", "Juni",
+	"Juli", "Agustus", "September", "Oktober", "November", "Desember",
+}
+
+// planFixAnnouncement describes the two readings corrected against the source
+// plan. The dates are derived from the year because the plan is keyed by day
+// of year, so a leap year shifts both by one calendar day.
+func planFixAnnouncement(year int) Announcement {
+	return Announcement{
+		ID: announcementID,
+		Fixes: []AnnouncementFix{
+			{
+				DayOfYear: 195,
+				Date:      formatDayOfYear(year, 195),
+				Was:       "Yl. 2:12-23",
+				Now:       "Yl. 2:12-32",
+				Note:      "Salah ketik angka, membuat Yoel 2:24-32 tidak pernah terbaca sepanjang tahun.",
+			},
+			{
+				DayOfYear: 241,
+				Date:      formatDayOfYear(year, 241),
+				Was:       "Yoh. 8:1-20",
+				Now:       "Yoh. 7:53-8:20",
+				Note:      "Yohanes 7:53 terlewat di peralihan hari; kini menyatu dengan perikopnya.",
+			},
+		},
+	}
+}
+
+func formatDayOfYear(year, dayOfYear int) string {
+	date := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, dayOfYear-1)
+	return strconv.Itoa(date.Day()) + " " + indonesianMonths[int(date.Month())-1]
 }
 
 type MissedMonth struct {
@@ -65,6 +121,7 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 		CompletedCount:  completedCount,
 		ProgressPercent: int(completedCount * 100 / 365),
 		MissedCount:     missedCount,
+		Announcement:    planFixAnnouncement(year),
 	}
 
 	setNoStore(w)

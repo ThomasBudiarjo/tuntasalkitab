@@ -32,6 +32,80 @@
       </div>
     </header>
 
+    {{with .Announcement}}
+    <button
+      type="button"
+      class="announcement"
+      id="announcement-bar"
+      data-announcement-id="{{.ID}}"
+      aria-haspopup="dialog"
+      style="display: none"
+    >
+      <svg class="announcement-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.75"/>
+        <path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+      </svg>
+      <span class="announcement-text">
+        <strong>Daftar bacaan diperbarui.</strong> 2 ayat yang sebelumnya terlewat kini sudah masuk.
+      </span>
+      <span class="announcement-cta">Lihat</span>
+    </button>
+
+    <!-- Reveal before first paint so a dismissed notice never flashes. -->
+    <script>
+      (function () {
+        var bar = document.getElementById("announcement-bar");
+        if (!bar) return;
+        try {
+          if (localStorage.getItem("bibleTrackerAnnouncement") === bar.dataset.announcementId) return;
+        } catch (e) {
+          /* storage blocked (private mode); show the notice anyway */
+        }
+        bar.style.display = "flex";
+      })();
+    </script>
+
+    <div id="announcement-modal" class="modal" style="display: none">
+      <div class="modal-backdrop"></div>
+      <div
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="announcement-title"
+      >
+        <div class="modal-icon">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+            <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h2 class="modal-title" id="announcement-title">Perbaikan Daftar Bacaan</h2>
+        <p class="modal-message">
+          Dua bacaan diperbaiki supaya seluruh Alkitab &mdash; 66 kitab, 1.189 pasal,
+          31.102 ayat &mdash; benar-benar tuntas dalam setahun.
+        </p>
+        <ul class="announcement-list">
+          {{range .Fixes}}
+          <li class="announcement-item">
+            <span class="announcement-day">
+              {{.Date}} <span class="announcement-doy">hari ke-{{.DayOfYear}}</span>
+            </span>
+            <span class="announcement-change">
+              <s>{{.Was}}</s> &rarr; <strong>{{.Now}}</strong>
+            </span>
+            <span class="announcement-note">{{.Note}}</span>
+          </li>
+          {{end}}
+        </ul>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-primary" id="announcement-dismiss">
+            Mengerti
+          </button>
+        </div>
+      </div>
+    </div>
+    {{end}}
+
     <!-- WebView Warning Modal -->
     <div id="webview-modal" class="modal" style="display: none;">
       <div class="modal-backdrop"></div>
@@ -59,6 +133,46 @@
     <footer class="footer">
       <p>Menamatkan Alkitab dalam satu tahun</p>
     </footer>
+
+    <script>
+    (function() {
+      var bar = document.getElementById('announcement-bar');
+      var modal = document.getElementById('announcement-modal');
+      if (!bar || !modal) return;
+
+      var backdrop = modal.querySelector('.modal-backdrop');
+      var dismissBtn = document.getElementById('announcement-dismiss');
+
+      function openModal() {
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeModal() {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+
+      // Only "Mengerti" retires the notice. Closing via backdrop or Escape
+      // leaves the bar in place so it can be opened again.
+      function dismiss() {
+        closeModal();
+        bar.style.display = 'none';
+        try {
+          localStorage.setItem('bibleTrackerAnnouncement', bar.dataset.announcementId);
+        } catch (e) {
+          /* storage blocked; the notice returns on the next visit */
+        }
+      }
+
+      bar.addEventListener('click', openModal);
+      if (dismissBtn) dismissBtn.addEventListener('click', dismiss);
+      if (backdrop) backdrop.addEventListener('click', closeModal);
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && modal.style.display === 'flex') closeModal();
+      });
+    })();
+    </script>
 
     <script>
     (function() {
