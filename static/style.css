@@ -15,6 +15,9 @@
     --color-border: #e2e8f0;
     --color-success: #059669;
     --color-accent: #d4a574;
+    --color-notice-bg: #fdf6ec;
+    --color-notice-border: #ecd9b9;
+    --color-notice-text: #7c5a2b;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
@@ -792,5 +795,108 @@ details.missed-card[open] .missed-chevron {
 
     .modal-actions .btn {
         flex: 1;
+    }
+}
+
+/* Announcement Bar */
+.announcement {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: var(--color-notice-bg);
+    border: none;
+    border-bottom: 1px solid var(--color-notice-border);
+    color: var(--color-notice-text);
+    font-family: inherit;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    text-align: left;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.15s ease;
+}
+
+.announcement:hover {
+    background: #faeedd;
+}
+
+.announcement-icon {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.announcement-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.announcement-text strong {
+    font-weight: 600;
+}
+
+.announcement-cta {
+    flex-shrink: 0;
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+/* Announcement Modal */
+.announcement-list {
+    list-style: none;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-bottom: 1.25rem;
+}
+
+.announcement-item {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 0.625rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.announcement-day {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.announcement-doy {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.announcement-change {
+    font-size: 0.8125rem;
+    color: var(--color-text);
+}
+
+.announcement-change s {
+    color: var(--color-text-muted);
+}
+
+.announcement-change strong {
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.announcement-note {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+}
+
+@media (max-width: 400px) {
+    .announcement-cta {
+        display: none;
     }
 }
