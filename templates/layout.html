@@ -73,35 +73,37 @@
         aria-modal="true"
         aria-labelledby="announcement-title"
       >
-        <div class="modal-icon">
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
-            <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+        <div class="announcement-scroll">
+          <div class="modal-icon">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+              <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2 class="modal-title" id="announcement-title">Perbaikan Daftar Bacaan</h2>
+          <p class="modal-message">
+            Dua bacaan diperbaiki supaya seluruh Alkitab &mdash; 66 kitab, 1.189 pasal,
+            31.102 ayat &mdash; benar-benar tuntas dalam setahun.
+          </p>
+          <ul class="announcement-list">
+            {{range .Fixes}}
+            <li class="announcement-item">
+              <span class="announcement-day">
+                {{.Date}} <span class="announcement-doy">hari ke-{{.DayOfYear}}</span>
+              </span>
+              <span class="announcement-change">
+                <s>{{.Was}}</s> &rarr;
+                <a href="{{.NowURL}}" target="_blank" rel="noopener" class="passage-link">{{.Now}}</a>
+              </span>
+              <span class="announcement-note">{{.Note}}</span>
+              <span class="announcement-missed">
+                Yang terlewat:
+                <a href="{{.MissedURL}}" target="_blank" rel="noopener" class="passage-link">{{.Missed}}</a>
+              </span>
+            </li>
+            {{end}}
+          </ul>
         </div>
-        <h2 class="modal-title" id="announcement-title">Perbaikan Daftar Bacaan</h2>
-        <p class="modal-message">
-          Dua bacaan diperbaiki supaya seluruh Alkitab &mdash; 66 kitab, 1.189 pasal,
-          31.102 ayat &mdash; benar-benar tuntas dalam setahun.
-        </p>
-        <ul class="announcement-list">
-          {{range .Fixes}}
-          <li class="announcement-item">
-            <span class="announcement-day">
-              {{.Date}} <span class="announcement-doy">hari ke-{{.DayOfYear}}</span>
-            </span>
-            <span class="announcement-change">
-              <s>{{.Was}}</s> &rarr;
-              <a href="{{.NowURL}}" target="_blank" rel="noopener" class="passage-link">{{.Now}}</a>
-            </span>
-            <span class="announcement-note">{{.Note}}</span>
-            <span class="announcement-missed">
-              Yang terlewat:
-              <a href="{{.MissedURL}}" target="_blank" rel="noopener" class="passage-link">{{.Missed}}</a>
-            </span>
-          </li>
-          {{end}}
-        </ul>
         <div class="modal-actions">
           <button type="button" class="btn btn-primary" id="announcement-close">
             Mengerti
