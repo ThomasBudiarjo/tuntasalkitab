@@ -732,6 +732,12 @@ details.missed-card[open] .missed-chevron {
     width: 100%;
     text-align: center;
     animation: modalSlideIn 0.2s ease-out;
+    /* body is overflow:hidden, so a modal taller than the viewport would put
+       its actions out of reach with no way to scroll to them. Cap it and let
+       the card scroll instead. */
+    max-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 @keyframes modalSlideIn {
@@ -845,6 +851,22 @@ details.missed-card[open] .missed-chevron {
 }
 
 /* Announcement Modal */
+
+/* This modal grows with the number of fixes listed, so rather than scrolling
+   the whole card, scroll only its body and keep the buttons in view — the
+   reader must always be able to reach "Jangan Tampilkan Lagi". */
+#announcement-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.announcement-scroll {
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 .announcement-list {
     list-style: none;
     text-align: left;
@@ -884,15 +906,30 @@ details.missed-card[open] .missed-chevron {
     color: var(--color-text-muted);
 }
 
-.announcement-change strong {
-    color: var(--color-primary);
+.announcement-change .passage-link,
+.announcement-missed .passage-link {
     font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+/* The struck-through old reference already uses the muted colour browsers
+   give visited links, so keep the corrected one primary either way. */
+.announcement-change .passage-link:visited,
+.announcement-missed .passage-link:visited {
+    color: var(--color-primary);
 }
 
 .announcement-note {
     font-size: 0.75rem;
     color: var(--color-text-muted);
     line-height: 1.5;
+}
+
+.announcement-missed {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    padding-top: 0.125rem;
 }
 
 @media (max-width: 400px) {
