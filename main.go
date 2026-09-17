@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"embed"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"strings"
 
+	"bible-tracker/internal/auth"
 	"bible-tracker/internal/db"
 	"bible-tracker/internal/handlers"
 	"bible-tracker/internal/middleware"
@@ -28,9 +30,6 @@ var templatesFS embed.FS
 
 //go:embed static/*
 var staticFS embed.FS
-
-//go:embed schema.sql
-var schemaSQL string
 
 const (
 	databasePathEnv     = "DATABASE_PATH"
@@ -110,21 +109,34 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	if _, err := sqlDB.Exec(schemaSQL); err != nil {
-		log.Fatal("Failed to run migrations:", err)
+	// Applying schema.sql on every boot only worked while every statement was
+	// idempotent. The migration runner records what it has applied, so an
+	// ALTER TABLE runs once instead of failing every restart after the first.
+	if err := db.Migrate(context.Background(), sqlDB); err != nil {
+		log.Fatal("Failed to run migrations: ", err)
 	}
 
 	queries := db.New(sqlDB)
 
+	// This used to fall back to a hardcoded string. That string is in a public
+	// repository, and it signs both the session cookie and now the API's access
+	// tokens — anyone holding it can mint a session for any user id. Refusing to
+	// start is the only safe behaviour.
 	sessionSecret := os.Getenv("SESSION_SECRET")
 	if sessionSecret == "" {
-		sessionSecret = "bible-tracker-secret-key-change-in-production"
+		log.Fatal("SESSION_SECRET is not set. Generate one with " +
+			"`openssl rand -base64 32` and set it, e.g. " +
+			"`heroku config:set SESSION_SECRET=...`")
 	}
 	store := sessions.NewCookieStore([]byte(sessionSecret))
 	store.Options = &sessions.Options{
 		Path:     "/",
 		MaxAge:   86400 * 365, // 1 year
 		HttpOnly: true,
+		// Inferred from the OAuth redirect URL rather than configured
+		// separately, so a TLS deployment gets a Secure cookie automatically
+		// while local development over http keeps working.
+		Secure:   strings.HasPrefix(os.Getenv("GOOGLE_REDIRECT_URL"), "https://"),
 		SameSite: http.SameSiteLaxMode,
 	}
 
@@ -133,9 +145,17 @@ func main() {
 		log.Fatal("Failed to parse templates:", err)
 	}
 
+	signer, err := auth.NewSigner(sessionSecret)
+	if err != nil {
+		log.Fatal("Failed to build token signer: ", err)
+	}
+	googleVerifier := auth.NewGoogleVerifier(os.Getenv("GOOGLE_CLIENT_ID"))
+
 	h := handlers.New(queries, templates)
 	authHandler := handlers.NewAuthHandler(queries, store)
+	apiHandler := handlers.NewAPIHandler(queries, signer, googleVerifier)
 	sessionMiddleware := middleware.NewSessionMiddleware(store, queries)
+	apiAuth := middleware.NewAPIAuth(signer)
 
 	r := chi.NewRouter()
 	r.Use(chiMiddleware.Logger)
@@ -155,6 +175,24 @@ func main() {
 		r.Get("/auth/google", authHandler.GoogleLogin)
 		r.Get("/auth/google/callback", authHandler.GoogleCallback)
 		r.Get("/logout", authHandler.Logout)
+	})
+
+	// The JSON API for the Android app. Deliberately outside the session group:
+	// that middleware inserts an anonymous users row for every request without a
+	// session cookie, which for an API would mean a junk row per unauthenticated
+	// call.
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Post("/auth/google", apiHandler.SignInWithGoogle)
+		r.Post("/auth/refresh", apiHandler.Refresh)
+
+		// The plan is the same for everyone, so it needs no authentication.
+		r.Get("/plan", apiHandler.GetPlan)
+
+		r.Group(func(r chi.Router) {
+			r.Use(apiAuth.Handler)
+			r.Get("/progress", apiHandler.GetProgress)
+			r.Post("/progress", apiHandler.PushProgress)
+		})
 	})
 
 	port := os.Getenv("PORT")

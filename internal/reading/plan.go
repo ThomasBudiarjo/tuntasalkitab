@@ -1,7 +1,9 @@
 package reading
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"time"
 )
@@ -21,6 +23,9 @@ func init() {
 	if err := json.Unmarshal(data, &readingPlan); err != nil {
 		panic("failed to parse reading plan: " + err.Error())
 	}
+
+	sum := sha256.Sum256(data)
+	planVersion = hex.EncodeToString(sum[:8])
 }
 
 func GetPassage(dayOfYear int) string {
@@ -35,12 +40,12 @@ func GetPassageByKey(day string) string {
 }
 
 type MonthInfo struct {
-	Month      int
-	MonthName  string
-	Year       int
-	Days       []DayInfo
-	TotalDays  int
-	StartDay   int
+	Month     int
+	MonthName string
+	Year      int
+	Days      []DayInfo
+	TotalDays int
+	StartDay  int
 }
 
 type DayInfo struct {
@@ -115,3 +120,27 @@ func GetCurrentYear() int {
 	return time.Now().Year()
 }
 
+// planVersion is the content hash of plan.json, computed once at startup.
+var planVersion string
+
+// PlanVersion identifies the current reading plan.
+//
+// It is derived from the file's contents rather than a hand-maintained
+// constant: the plan has already been corrected twice, and a version someone
+// has to remember to bump is a version that eventually does not get bumped —
+// leaving installed apps silently on a stale plan.
+//
+// The mobile client stores this alongside its copy and replaces the plan when
+// the server reports a different value.
+func PlanVersion() string {
+	return planVersion
+}
+
+// Days returns the whole plan, keyed by day of year as a string.
+func Days() map[string]string {
+	days := make(map[string]string, len(readingPlan))
+	for k, v := range readingPlan {
+		days[k] = v
+	}
+	return days
+}

@@ -6,14 +6,23 @@ package db
 
 import (
 	"database/sql"
+	"time"
 )
 
 type ReadingProgress struct {
-	ID          int64        `json:"id"`
-	UserID      int64        `json:"user_id"`
-	DayOfYear   int64        `json:"day_of_year"`
-	Completed   sql.NullBool `json:"completed"`
-	CompletedAt sql.NullTime `json:"completed_at"`
+	ID          int64         `json:"id"`
+	UserID      int64         `json:"user_id"`
+	DayOfYear   int64         `json:"day_of_year"`
+	Completed   sql.NullBool  `json:"completed"`
+	CompletedAt sql.NullTime  `json:"completed_at"`
+	UpdatedAt   sql.NullInt64 `json:"updated_at"`
+}
+
+type RefreshToken struct {
+	TokenHash string       `json:"token_hash"`
+	UserID    int64        `json:"user_id"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	ExpiresAt time.Time    `json:"expires_at"`
 }
 
 type User struct {
