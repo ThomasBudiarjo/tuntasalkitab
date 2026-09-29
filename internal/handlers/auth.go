@@ -215,7 +215,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 // The guest's rows are deleted before the guest itself: reading_progress
 // references users(id), and leaving them behind would orphan them.
 func (h *AuthHandler) mergeGuestInto(r *http.Request, guestID, userID int64) error {
-	if err := h.queries.MergeProgress(r.Context(), guestID, userID); err != nil {
+	if err := h.queries.MergeProgress(r.Context(), guestID, userID, time.Now().UnixMilli()); err != nil {
 		return fmt.Errorf("copy progress: %w", err)
 	}
 	if err := h.queries.DeleteProgressForUser(r.Context(), guestID); err != nil {

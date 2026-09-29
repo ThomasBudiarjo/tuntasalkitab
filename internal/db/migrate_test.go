@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -124,23 +125,31 @@ func TestMigrateBackfillsUpdatedAt(t *testing.T) {
 	}
 
 	var completedUpdatedAt, uncompletedUpdatedAt sql.NullInt64
+	var completedChangedAt, uncompletedChangedAt sql.NullInt64
 	if err := sqlDB.QueryRowContext(ctx,
-		"SELECT updated_at FROM reading_progress WHERE day_of_year = 10").Scan(&completedUpdatedAt); err != nil {
+		"SELECT updated_at, changed_at FROM reading_progress WHERE day_of_year = 10").Scan(&completedUpdatedAt, &completedChangedAt); err != nil {
 		t.Fatalf("read day 10: %v", err)
 	}
 	if err := sqlDB.QueryRowContext(ctx,
-		"SELECT updated_at FROM reading_progress WHERE day_of_year = 11").Scan(&uncompletedUpdatedAt); err != nil {
+		"SELECT updated_at, changed_at FROM reading_progress WHERE day_of_year = 11").Scan(&uncompletedUpdatedAt, &uncompletedChangedAt); err != nil {
 		t.Fatalf("read day 11: %v", err)
 	}
 
-	if !completedUpdatedAt.Valid || !uncompletedUpdatedAt.Valid {
-		t.Fatalf("updated_at left NULL: day10=%v day11=%v", completedUpdatedAt, uncompletedUpdatedAt)
+	if !completedUpdatedAt.Valid || !uncompletedUpdatedAt.Valid || !completedChangedAt.Valid || !uncompletedChangedAt.Valid {
+		t.Fatalf("sync timestamps left NULL: day10 updated=%v changed=%v day11 updated=%v changed=%v",
+			completedUpdatedAt, completedChangedAt, uncompletedUpdatedAt, uncompletedChangedAt)
 	}
 	if got, want := completedUpdatedAt.Int64, completedAt.UnixMilli(); got != want {
 		t.Errorf("completed row: updated_at = %d, want completed_at %d", got, want)
 	}
+	if got, want := completedChangedAt.Int64, completedUpdatedAt.Int64; got != want {
+		t.Errorf("completed row: changed_at = %d, want updated_at %d", got, want)
+	}
 	if uncompletedUpdatedAt.Int64 <= 0 {
 		t.Errorf("uncompleted row got a nonsensical updated_at: %d", uncompletedUpdatedAt.Int64)
+	}
+	if uncompletedChangedAt.Int64 != uncompletedUpdatedAt.Int64 {
+		t.Errorf("uncompleted row: changed_at = %d, want updated_at %d", uncompletedChangedAt.Int64, uncompletedUpdatedAt.Int64)
 	}
 }
 
@@ -175,6 +184,7 @@ func TestMergeUserProgressWithCollidingDays(t *testing.T) {
 			DayOfYear: day,
 			Completed: sql.NullBool{Bool: completed, Valid: true},
 			UpdatedAt: sql.NullInt64{Int64: updatedAt, Valid: true},
+			ChangedAt: sql.NullInt64{Int64: updatedAt, Valid: true},
 		}); err != nil {
 			t.Fatalf("upsert user %d day %d: %v", userID, day, err)
 		}
@@ -189,7 +199,7 @@ func TestMergeUserProgressWithCollidingDays(t *testing.T) {
 	set(guest.ID, 3, false, 1000)
 	set(account.ID, 3, true, 2000)
 
-	if err := q.MergeProgress(ctx, guest.ID, account.ID); err != nil {
+	if err := q.MergeProgress(ctx, guest.ID, account.ID, 3000); err != nil {
 		t.Fatalf("merge: %v", err)
 	}
 
@@ -249,6 +259,7 @@ func TestUpsertProgressIfNewerRejectsStaleWrites(t *testing.T) {
 			DayOfYear: 42,
 			Completed: sql.NullBool{Bool: completed, Valid: true},
 			UpdatedAt: sql.NullInt64{Int64: updatedAt, Valid: true},
+			ChangedAt: sql.NullInt64{Int64: updatedAt, Valid: true},
 		}); err != nil {
 			t.Fatalf("push: %v", err)
 		}
@@ -284,5 +295,56 @@ func TestUpsertProgressIfNewerRejectsStaleWrites(t *testing.T) {
 	push(false, 3000)
 	if completed, at := state(); completed || at != 3000 {
 		t.Errorf("newer write was not applied: completed=%v at=%d", completed, at)
+	}
+}
+
+func TestConsumeRefreshTokenIsSingleUseUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	sqlDB := openTestDB(t)
+	if err := Migrate(ctx, sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	q := New(sqlDB)
+
+	user, err := q.CreateAnonymousUser(ctx)
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := q.CreateRefreshToken(ctx, CreateRefreshTokenParams{
+		TokenHash: "refresh-hash",
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("create refresh token: %v", err)
+	}
+
+	const attempts = 8
+	errs := make(chan error, attempts)
+	var wg sync.WaitGroup
+	for range attempts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, err := q.ConsumeRefreshToken(ctx, "refresh-hash")
+			errs <- err
+		}()
+	}
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	spent := 0
+	for err := range errs {
+		switch {
+		case err == nil:
+			successes++
+		case err == sql.ErrNoRows:
+			spent++
+		default:
+			t.Fatalf("unexpected consume error: %v", err)
+		}
+	}
+	if successes != 1 || spent != attempts-1 {
+		t.Fatalf("concurrent consume successes=%d spent=%d, want 1 and %d", successes, spent, attempts-1)
 	}
 }

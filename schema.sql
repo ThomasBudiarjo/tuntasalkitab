@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS reading_progress (
     completed_at DATETIME,
     -- Epoch milliseconds. See migrations/0002 for why this is not a DATETIME.
     updated_at INTEGER,
+    -- Server-side epoch milliseconds used as the delta sync cursor.
+    changed_at INTEGER,
     FOREIGN KEY (user_id) REFERENCES users(id),
     UNIQUE(user_id, day_of_year)
 );
@@ -36,4 +38,5 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_progress_user_updated ON reading_progress(user_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_progress_user_changed ON reading_progress(user_id, changed_at);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);

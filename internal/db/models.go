@@ -16,6 +16,7 @@ type ReadingProgress struct {
 	Completed   sql.NullBool  `json:"completed"`
 	CompletedAt sql.NullTime  `json:"completed_at"`
 	UpdatedAt   sql.NullInt64 `json:"updated_at"`
+	ChangedAt   sql.NullInt64 `json:"changed_at"`
 }
 
 type RefreshToken struct {

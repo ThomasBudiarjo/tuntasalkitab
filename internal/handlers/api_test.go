@@ -23,13 +23,19 @@ import (
 const testSecret = "a-secret-long-enough-for-testing"
 
 type testAPI struct {
-	router  http.Handler
-	queries *db.Queries
-	sqlDB   *sql.DB
-	signer  *auth.Signer
+	router     http.Handler
+	queries    *db.Queries
+	sqlDB      *sql.DB
+	signer     *auth.Signer
+	apiHandler *APIHandler
 }
 
 func newTestAPI(t *testing.T) *testAPI {
+	t.Helper()
+	return newTestAPIWithGoogle(t, auth.NewGoogleVerifier(""))
+}
+
+func newTestAPIWithGoogle(t *testing.T, google googleVerifier) *testAPI {
 	t.Helper()
 
 	sqlDB, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "api.db"))
@@ -48,9 +54,7 @@ func newTestAPI(t *testing.T) *testAPI {
 		t.Fatalf("signer: %v", err)
 	}
 
-	// GOOGLE_CLIENT_ID is deliberately empty: these tests never mint a Google
-	// ID token, and verifying one would mean calling Google.
-	apiHandler := NewAPIHandler(queries, signer, auth.NewGoogleVerifier(""))
+	apiHandler := NewAPIHandler(queries, signer, google)
 	apiAuth := middleware.NewAPIAuth(signer)
 
 	r := chi.NewRouter()
@@ -65,7 +69,7 @@ func newTestAPI(t *testing.T) *testAPI {
 		})
 	})
 
-	return &testAPI{router: r, queries: queries, sqlDB: sqlDB, signer: signer}
+	return &testAPI{router: r, queries: queries, sqlDB: sqlDB, signer: signer, apiHandler: apiHandler}
 }
 
 func (a *testAPI) do(t *testing.T, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -148,29 +152,39 @@ func TestProgressRoundTrip(t *testing.T) {
 	}
 	token := api.tokenFor(t, user.ID)
 
-	// Push two days.
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(1_000) }
 	rec := api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
 		"items": []map[string]any{
 			{"dayOfYear": 1, "completed": true, "updatedAt": 1000},
+		},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("push day 1: status %d body %s", rec.Code, rec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(2_000) }
+	rec = api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{
 			{"dayOfYear": 2, "completed": true, "updatedAt": 2000},
 		},
 	})
 	if rec.Code != http.StatusOK {
-		t.Fatalf("push: status %d body %s", rec.Code, rec.Body.String())
+		t.Fatalf("push day 2: status %d body %s", rec.Code, rec.Body.String())
 	}
 
 	var pushed progressResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &pushed); err != nil {
 		t.Fatalf("decode push response: %v", err)
 	}
-	if len(pushed.Items) != 2 {
-		t.Fatalf("push echoed %d items, want 2", len(pushed.Items))
+	if len(pushed.Items) != 1 {
+		t.Fatalf("push echoed %d items, want 1", len(pushed.Items))
 	}
 	if pushed.ServerTime <= 0 {
 		t.Error("push did not return a server time to use as the next cursor")
 	}
 
 	// Pull everything.
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(3_000) }
 	rec = api.do(t, http.MethodGet, "/api/v1/progress?since=0", token, nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("pull: status %d body %s", rec.Code, rec.Body.String())
@@ -183,7 +197,7 @@ func TestProgressRoundTrip(t *testing.T) {
 		t.Fatalf("pull returned %d items, want 2", len(pulled.Items))
 	}
 
-	// A delta pull past the first day returns only the second.
+	// A delta pull past the first server-side change cursor returns only the second.
 	rec = api.do(t, http.MethodGet, "/api/v1/progress?since=1000", token, nil)
 	var delta progressResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
@@ -191,6 +205,56 @@ func TestProgressRoundTrip(t *testing.T) {
 	}
 	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 2 {
 		t.Errorf("delta since=1000 returned %+v, want only day 2", delta.Items)
+	}
+}
+
+func TestDeltaPullUsesServerChangeCursorNotDeviceUpdatedAt(t *testing.T) {
+	api := newTestAPI(t)
+	ctx := context.Background()
+	user, err := api.queries.CreateUser(ctx, db.CreateUserParams{
+		GoogleID: sql.NullString{String: "g-slow-clock", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := api.tokenFor(t, user.ID)
+
+	// Device B pulls when the server clock is far ahead of device A's clock.
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(100_000) }
+	rec := api.do(t, http.MethodGet, "/api/v1/progress?since=0", token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("initial pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var initial progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &initial); err != nil {
+		t.Fatalf("decode initial pull: %v", err)
+	}
+	if initial.ServerTime != 100_000 {
+		t.Fatalf("initial cursor = %d, want 100000", initial.ServerTime)
+	}
+
+	// Later, device A uploads a valid change stamped with its own slow/offline
+	// clock. LWW still uses updatedAt=5000, but delta sync must use the server
+	// change time so device B can see it after since=100000.
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(101_000) }
+	rec = api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 7, "completed": true, "updatedAt": 5_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("slow-clock push: %d %s", rec.Code, rec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(102_000) }
+	rec = api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/progress?since=%d", initial.ServerTime), token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delta pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var delta progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
+		t.Fatalf("decode delta: %v", err)
+	}
+	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 7 || delta.Items[0].UpdatedAt != 5_000 {
+		t.Fatalf("delta after slow-clock push = %+v, want day 7 updatedAt 5000", delta.Items)
 	}
 }
 
@@ -395,6 +459,80 @@ func TestSignInRequiresGoogleConfiguration(t *testing.T) {
 	rec = api.do(t, http.MethodPost, "/api/v1/auth/google", "", map[string]any{"idToken": ""})
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("status %d, want 400 for an empty idToken", rec.Code)
+	}
+}
+
+type fakeGoogleVerifier struct {
+	identity auth.GoogleIdentity
+	err      error
+	calls    int
+}
+
+func (v *fakeGoogleVerifier) Verify(ctx context.Context, rawToken string) (auth.GoogleIdentity, error) {
+	v.calls++
+	if v.err != nil {
+		return auth.GoogleIdentity{}, v.err
+	}
+	return v.identity, nil
+}
+
+func TestSignInWithGoogleIssuesTokensAndReusesExistingUser(t *testing.T) {
+	verifier := &fakeGoogleVerifier{identity: auth.GoogleIdentity{
+		Subject: "google-subject-1",
+		Email:   "reader@example.com",
+		Name:    "Reader",
+	}}
+	api := newTestAPIWithGoogle(t, verifier)
+
+	rec := api.do(t, http.MethodPost, "/api/v1/auth/google", "", map[string]any{"idToken": "id-token"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first sign-in: %d %s", rec.Code, rec.Body.String())
+	}
+	var first authResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
+		t.Fatalf("decode first response: %v", err)
+	}
+	if first.AccessToken == "" || first.RefreshToken == "" {
+		t.Fatal("first sign-in returned empty tokens")
+	}
+	if first.User.Email != "reader@example.com" || first.User.Name != "Reader" {
+		t.Fatalf("first sign-in user = %+v", first.User)
+	}
+
+	rec = api.do(t, http.MethodGet, "/api/v1/progress?since=0", first.AccessToken, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("access token from sign-in was rejected: %d %s", rec.Code, rec.Body.String())
+	}
+
+	rec = api.do(t, http.MethodPost, "/api/v1/auth/google", "", map[string]any{"idToken": "id-token-again"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second sign-in: %d %s", rec.Code, rec.Body.String())
+	}
+	var second authResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &second); err != nil {
+		t.Fatalf("decode second response: %v", err)
+	}
+	if second.User.ID != first.User.ID {
+		t.Fatalf("second sign-in created user %d, want existing user %d", second.User.ID, first.User.ID)
+	}
+	if got := api.userCount(t); got != 1 {
+		t.Fatalf("sign-in created %d users, want 1", got)
+	}
+	if verifier.calls != 2 {
+		t.Fatalf("verifier called %d times, want 2", verifier.calls)
+	}
+}
+
+func TestRejectsTrailingJSON(t *testing.T) {
+	api := newTestAPI(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/google", bytes.NewBufferString(`{"idToken":"x"} {}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	api.router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400 for trailing JSON", rec.Code)
 	}
 }
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,10 @@ import (
 	"bible-tracker/internal/middleware"
 	"bible-tracker/internal/reading"
 )
+
+type googleVerifier interface {
+	Verify(ctx context.Context, rawToken string) (auth.GoogleIdentity, error)
+}
 
 // maxProgressItems caps a single push. The plan is 365 days, so a client with
 // anything to say can say it in one request; a larger body is a mistake or an
@@ -32,12 +37,12 @@ const maxRequestBytes = 1 << 20 // 1 MiB
 type APIHandler struct {
 	queries  *db.Queries
 	signer   *auth.Signer
-	google   *auth.GoogleVerifier
+	google   googleVerifier
 	now      func() time.Time
 	planEtag string
 }
 
-func NewAPIHandler(queries *db.Queries, signer *auth.Signer, google *auth.GoogleVerifier) *APIHandler {
+func NewAPIHandler(queries *db.Queries, signer *auth.Signer, google googleVerifier) *APIHandler {
 	return &APIHandler{
 		queries:  queries,
 		signer:   signer,
@@ -146,13 +151,11 @@ func (h *APIHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hash := auth.HashRefreshToken(body.RefreshToken)
-	stored, err := h.queries.GetRefreshToken(r.Context(), hash)
+	stored, err := h.queries.ConsumeRefreshToken(r.Context(), hash)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "refresh token rejected")
 		return
 	}
-
-	_ = h.queries.DeleteRefreshToken(r.Context(), hash)
 
 	if h.now().After(stored.ExpiresAt) {
 		writeError(w, http.StatusUnauthorized, "refresh token expired")
@@ -222,9 +225,11 @@ func (h *APIHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
 		since = parsed
 	}
 
+	cutoff := h.now().UnixMilli()
 	rows, err := h.queries.GetProgressSince(r.Context(), db.GetProgressSinceParams{
-		UserID:    userID,
-		UpdatedAt: sql.NullInt64{Int64: since, Valid: true},
+		UserID:      userID,
+		ChangedAt:   sql.NullInt64{Int64: since, Valid: true},
+		ChangedAt_2: sql.NullInt64{Int64: cutoff, Valid: true},
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read progress")
@@ -232,7 +237,7 @@ func (h *APIHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, progressResponse{
-		ServerTime: h.now().UnixMilli(),
+		ServerTime: cutoff,
 		Items:      toItems(rows),
 	})
 }
@@ -277,6 +282,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		touched[item.DayOfYear] = true
 	}
 
+	changedAt := h.now().UnixMilli()
 	for _, item := range body.Items {
 		var completedAt sql.NullTime
 		if item.Completed {
@@ -289,6 +295,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 			Completed:   sql.NullBool{Bool: item.Completed, Valid: true},
 			CompletedAt: completedAt,
 			UpdatedAt:   sql.NullInt64{Int64: item.UpdatedAt, Valid: true},
+			ChangedAt:   sql.NullInt64{Int64: changedAt, Valid: true},
 		}); err != nil {
 			writeError(w, http.StatusInternalServerError, "could not save progress")
 			return
@@ -309,7 +316,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, progressResponse{
-		ServerTime: h.now().UnixMilli(),
+		ServerTime: changedAt,
 		Items:      toItems(echo),
 	})
 }
@@ -355,6 +362,11 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		writeError(w, http.StatusBadRequest, "request body must contain a single JSON value")
 		return false
 	}
 	return true

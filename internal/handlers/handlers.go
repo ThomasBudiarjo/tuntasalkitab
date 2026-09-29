@@ -192,9 +192,10 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		newCompleted = !progress.Completed.Bool
 	}
 
+	now := time.Now()
 	var completedAt sql.NullTime
 	if newCompleted {
-		completedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		completedAt = sql.NullTime{Time: now, Valid: true}
 	}
 
 	err = h.queries.UpsertProgress(r.Context(), db.UpsertProgressParams{
@@ -204,7 +205,8 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		CompletedAt: completedAt,
 		// Without this the app's delta pull would never see changes made on
 		// the website, since it asks for rows newer than its cursor.
-		UpdatedAt: sql.NullInt64{Int64: time.Now().UnixMilli(), Valid: true},
+		UpdatedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
+		ChangedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
 	})
 	if err != nil {
 		http.Error(w, "Failed to update progress", http.StatusInternalServerError)

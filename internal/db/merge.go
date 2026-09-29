@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 )
 
@@ -20,7 +21,7 @@ import (
 // UNIQUE(user_id, day_of_year) whenever both users had touched the same day.
 // That is the normal case when someone reads as a guest and then signs in, and
 // the failure used to be swallowed, so their guest progress simply vanished.
-func (q *Queries) MergeProgress(ctx context.Context, sourceUserID, targetUserID int64) error {
+func (q *Queries) MergeProgress(ctx context.Context, sourceUserID, targetUserID int64, changedAt int64) error {
 	if sourceUserID == targetUserID {
 		return nil
 	}
@@ -37,10 +38,15 @@ func (q *Queries) MergeProgress(ctx context.Context, sourceUserID, targetUserID 
 			Completed:   row.Completed,
 			CompletedAt: row.CompletedAt,
 			UpdatedAt:   row.UpdatedAt,
+			ChangedAt:   sqlNullInt64(changedAt),
 		}); err != nil {
 			return fmt.Errorf("merge day %d: %w", row.DayOfYear, err)
 		}
 	}
 
 	return nil
+}
+
+func sqlNullInt64(v int64) sql.NullInt64 {
+	return sql.NullInt64{Int64: v, Valid: true}
 }

@@ -32,27 +32,31 @@ SELECT * FROM reading_progress WHERE user_id = ? AND day_of_year = ?;
 -- compare as NULL and silently never sync.
 -- name: GetProgressSince :many
 SELECT * FROM reading_progress
-WHERE user_id = ? AND COALESCE(updated_at, 0) > ?
-ORDER BY updated_at;
+WHERE user_id = ?
+  AND COALESCE(changed_at, 0) > ?
+  AND COALESCE(changed_at, 0) <= ?
+ORDER BY changed_at;
 
 -- name: UpsertProgress :exec
-INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at, changed_at)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_id, day_of_year) DO UPDATE SET
     completed = excluded.completed,
     completed_at = excluded.completed_at,
-    updated_at = excluded.updated_at;
+    updated_at = excluded.updated_at,
+    changed_at = excluded.changed_at;
 
 -- Last-write-wins upsert: the incoming row only lands if it is strictly newer
 -- than what is stored. A tie leaves the server's row alone, which makes the
 -- server the tiebreaker and keeps a retried push idempotent.
 -- name: UpsertProgressIfNewer :exec
-INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at, changed_at)
+VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(user_id, day_of_year) DO UPDATE SET
     completed = excluded.completed,
     completed_at = excluded.completed_at,
-    updated_at = excluded.updated_at
+    updated_at = excluded.updated_at,
+    changed_at = excluded.changed_at
 WHERE excluded.updated_at > COALESCE(reading_progress.updated_at, 0);
 
 -- name: CountCompletedDays :one
@@ -71,6 +75,11 @@ VALUES (?, ?, ?);
 -- name: GetRefreshToken :one
 SELECT token_hash, user_id, created_at, expires_at
 FROM refresh_tokens WHERE token_hash = ?;
+
+-- name: ConsumeRefreshToken :one
+DELETE FROM refresh_tokens
+WHERE token_hash = ?
+RETURNING token_hash, user_id, created_at, expires_at;
 
 -- name: DeleteRefreshToken :exec
 DELETE FROM refresh_tokens WHERE token_hash = ?;

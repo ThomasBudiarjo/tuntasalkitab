@@ -24,12 +24,19 @@ A simple web application to track your daily Bible reading progress through the 
    cp .env.example .env
    ```
 
-3. **Run the application:**
+3. **Set a session secret:**
+   ```bash
+   openssl rand -base64 32
+   ```
+   Paste the generated value into `SESSION_SECRET` in `.env`. The server
+   refuses to boot without a secret of at least 16 bytes.
+
+4. **Run the application:**
    ```bash
    go run main.go
    ```
 
-4. **Open in browser:**
+5. **Open in browser:**
    ```
    http://localhost:8493
    ```
@@ -45,7 +52,15 @@ TURSO_AUTH_TOKEN=your-turso-auth-token
 
 When `TURSO_DATABASE_URL` is set, the application ignores `DATABASE_PATH` and opens the database with the `libsql` driver.
 
-## Google OAuth Setup (Optional)
+## Google OAuth Setup
+
+`GOOGLE_CLIENT_ID` is required in production for the Android app's
+`POST /api/v1/auth/google` endpoint. The Android app passes the web client ID
+as its server client ID, so this value must be the web OAuth client ID whose
+audience Google puts in the ID token.
+
+`GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URL` are also needed for the
+existing website Google sign-in flow.
 
 To enable Google Sign-in:
 
@@ -56,6 +71,21 @@ To enable Google Sign-in:
 5. Select "Web application"
 6. Add `http://localhost:8493/auth/google/callback` to Authorized redirect URIs
 7. Copy the Client ID and Client Secret to your `.env` file
+
+## Mobile JSON API
+
+The Android client syncs through `/api/v1`:
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/auth/google` | Google ID token to access and refresh tokens |
+| `POST /api/v1/auth/refresh` | Rotate refresh tokens; the presented token is spent |
+| `GET /api/v1/progress?since=` | Pull rows changed after a server epoch-millis cursor |
+| `POST /api/v1/progress` | Push progress batches with last-write-wins conflict handling |
+| `GET /api/v1/plan` | Fetch the reading plan with an ETag |
+
+Before production deploy, set `SESSION_SECRET` and `GOOGLE_CLIENT_ID`. Do not
+commit Google client secrets or other credentials.
 
 ## Project Structure
 
