@@ -116,18 +116,8 @@ func (h *APIHandler) SignInWithGoogle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *APIHandler) findOrCreateUser(r *http.Request, identity auth.GoogleIdentity) (db.User, error) {
-	googleID := sql.NullString{String: identity.Subject, Valid: true}
-
-	user, err := h.queries.GetUserByGoogleID(r.Context(), googleID)
-	if err == nil {
-		return user, nil
-	}
-	if !errors.Is(err, sql.ErrNoRows) {
-		return db.User{}, err
-	}
-
-	return h.queries.CreateUser(r.Context(), db.CreateUserParams{
-		GoogleID: googleID,
+	return h.queries.UpsertGoogleUser(r.Context(), db.CreateUserParams{
+		GoogleID: sql.NullString{String: identity.Subject, Valid: true},
 		Email:    sql.NullString{String: identity.Email, Valid: identity.Email != ""},
 		Name:     sql.NullString{String: identity.Name, Valid: identity.Name != ""},
 	})
@@ -151,7 +141,7 @@ func (h *APIHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 	}
 
 	hash := auth.HashRefreshToken(body.RefreshToken)
-	stored, err := h.queries.ConsumeRefreshToken(r.Context(), hash)
+	stored, err := h.queries.ConsumeRefreshTokenWithRetry(r.Context(), hash)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "refresh token rejected")
 		return
@@ -181,7 +171,7 @@ func (h *APIHandler) issueTokens(w http.ResponseWriter, r *http.Request, user db
 		return
 	}
 
-	if err := h.queries.CreateRefreshToken(r.Context(), db.CreateRefreshTokenParams{
+	if err := h.queries.CreateRefreshTokenWithRetry(r.Context(), db.CreateRefreshTokenParams{
 		TokenHash: refreshHash,
 		UserID:    user.ID,
 		ExpiresAt: now.Add(auth.RefreshTokenTTL),
@@ -225,7 +215,11 @@ func (h *APIHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
 		since = parsed
 	}
 
-	cutoff := h.now().UnixMilli()
+	cutoff, err := h.queries.NextSyncCursor(r.Context(), h.now().UnixMilli())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not allocate sync cursor")
+		return
+	}
 	rows, err := h.queries.GetProgressSince(r.Context(), db.GetProgressSinceParams{
 		UserID:      userID,
 		ChangedAt:   sql.NullInt64{Int64: since, Valid: true},
@@ -282,7 +276,11 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		touched[item.DayOfYear] = true
 	}
 
-	changedAt := h.now().UnixMilli()
+	changedAt, err := h.queries.NextSyncCursor(r.Context(), h.now().UnixMilli())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not allocate sync cursor")
+		return
+	}
 	for _, item := range body.Items {
 		var completedAt sql.NullTime
 		if item.Completed {

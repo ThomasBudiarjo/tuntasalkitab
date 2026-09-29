@@ -40,3 +40,12 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE INDEX IF NOT EXISTS idx_progress_user_updated ON reading_progress(user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_progress_user_changed ON reading_progress(user_id, changed_at);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+
+-- Single-row server cursor clock for mobile delta sync.
+CREATE TABLE IF NOT EXISTS sync_clock (
+    id      INTEGER PRIMARY KEY CHECK (id = 1),
+    last_ms INTEGER NOT NULL
+);
+
+INSERT OR IGNORE INTO sync_clock (id, last_ms)
+VALUES (1, CAST(strftime('%s', 'now') AS INTEGER) * 1000);

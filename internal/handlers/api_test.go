@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -46,6 +47,9 @@ func newTestAPIWithGoogle(t *testing.T, google googleVerifier) *testAPI {
 
 	if err := db.Migrate(context.Background(), sqlDB); err != nil {
 		t.Fatalf("migrate: %v", err)
+	}
+	if _, err := sqlDB.Exec("UPDATE sync_clock SET last_ms = 0 WHERE id = 1"); err != nil {
+		t.Fatalf("reset sync clock: %v", err)
 	}
 
 	queries := db.New(sqlDB)
@@ -255,6 +259,92 @@ func TestDeltaPullUsesServerChangeCursorNotDeviceUpdatedAt(t *testing.T) {
 	}
 	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 7 || delta.Items[0].UpdatedAt != 5_000 {
 		t.Fatalf("delta after slow-clock push = %+v, want day 7 updatedAt 5000", delta.Items)
+	}
+}
+
+func TestDeltaCursorDoesNotSkipSameMillisecondPushAfterPull(t *testing.T) {
+	api := newTestAPI(t)
+	user, err := api.queries.CreateUser(context.Background(), db.CreateUserParams{
+		GoogleID: sql.NullString{String: "g-same-ms-pull", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := api.tokenFor(t, user.ID)
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(100_000) }
+	rec := api.do(t, http.MethodGet, "/api/v1/progress?since=0", token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("initial pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var initial progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &initial); err != nil {
+		t.Fatalf("decode initial pull: %v", err)
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(100_000) }
+	rec = api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 8, "completed": true, "updatedAt": 8_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("same-ms push: %d %s", rec.Code, rec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(100_001) }
+	rec = api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/progress?since=%d", initial.ServerTime), token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delta pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var delta progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
+		t.Fatalf("decode delta: %v", err)
+	}
+	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 8 {
+		t.Fatalf("delta after same-ms push = %+v, want day 8", delta.Items)
+	}
+}
+
+func TestPushCursorDoesNotSkipPeerChangeInSameMillisecond(t *testing.T) {
+	api := newTestAPI(t)
+	user, err := api.queries.CreateUser(context.Background(), db.CreateUserParams{
+		GoogleID: sql.NullString{String: "g-same-ms-push", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := api.tokenFor(t, user.ID)
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(200_000) }
+	rec := api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 9, "completed": true, "updatedAt": 9_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first push: %d %s", rec.Code, rec.Body.String())
+	}
+	var first progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil {
+		t.Fatalf("decode first push: %v", err)
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(200_000) }
+	rec = api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 10, "completed": true, "updatedAt": 10_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("peer push: %d %s", rec.Code, rec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(200_001) }
+	rec = api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/progress?since=%d", first.ServerTime), token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delta pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var delta progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
+		t.Fatalf("decode delta: %v", err)
+	}
+	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 10 {
+		t.Fatalf("delta after peer same-ms push = %+v, want day 10", delta.Items)
 	}
 }
 
@@ -520,6 +610,42 @@ func TestSignInWithGoogleIssuesTokensAndReusesExistingUser(t *testing.T) {
 	}
 	if verifier.calls != 2 {
 		t.Fatalf("verifier called %d times, want 2", verifier.calls)
+	}
+}
+
+func TestConcurrentFirstGoogleSignInReusesRacingUser(t *testing.T) {
+	verifier := &fakeGoogleVerifier{identity: auth.GoogleIdentity{
+		Subject: "google-race",
+		Email:   "race@example.com",
+		Name:    "Race Reader",
+	}}
+	api := newTestAPIWithGoogle(t, verifier)
+
+	const attempts = 8
+	type result struct {
+		status int
+		body   string
+	}
+	results := make(chan result, attempts)
+	var wg sync.WaitGroup
+	for range attempts {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			rec := api.do(t, http.MethodPost, "/api/v1/auth/google", "", map[string]any{"idToken": "id-token"})
+			results <- result{status: rec.Code, body: rec.Body.String()}
+		}()
+	}
+	wg.Wait()
+	close(results)
+
+	for result := range results {
+		if result.status != http.StatusOK {
+			t.Fatalf("concurrent sign-in status %d body %s, want 200", result.status, result.body)
+		}
+	}
+	if got := api.userCount(t); got != 1 {
+		t.Fatalf("concurrent sign-ins created %d users, want 1", got)
 	}
 }
 

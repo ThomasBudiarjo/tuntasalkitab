@@ -8,7 +8,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"strings"
 	"time"
 )
 
@@ -99,32 +98,15 @@ RETURNING token_hash, user_id, created_at, expires_at
 `
 
 func (q *Queries) ConsumeRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, consumeRefreshToken, tokenHash)
 	var i RefreshToken
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		row := q.db.QueryRowContext(ctx, consumeRefreshToken, tokenHash)
-		err = row.Scan(
-			&i.TokenHash,
-			&i.UserID,
-			&i.CreatedAt,
-			&i.ExpiresAt,
-		)
-		if err == nil || !isBusy(err) {
-			return i, err
-		}
-		select {
-		case <-ctx.Done():
-			return RefreshToken{}, ctx.Err()
-		case <-time.After(time.Duration(attempt+1) * 10 * time.Millisecond):
-		}
-	}
-	return RefreshToken{}, err
-}
-
-func isBusy(err error) bool {
-	message := err.Error()
-	return strings.Contains(message, "SQLITE_BUSY") ||
-		strings.Contains(message, "database is locked")
+	err := row.Scan(
+		&i.TokenHash,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
 const deleteProgressForUser = `-- name: DeleteProgressForUser :exec

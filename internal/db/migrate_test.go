@@ -33,7 +33,7 @@ func TestMigrateCreatesSchema(t *testing.T) {
 		t.Fatalf("migrate: %v", err)
 	}
 
-	for _, table := range []string{"users", "reading_progress", "refresh_tokens", "schema_migrations"} {
+	for _, table := range []string{"users", "reading_progress", "refresh_tokens", "sync_clock", "schema_migrations"} {
 		var name string
 		err := sqlDB.QueryRowContext(ctx,
 			"SELECT name FROM sqlite_master WHERE type='table' AND name = ?", table,
@@ -47,8 +47,8 @@ func TestMigrateCreatesSchema(t *testing.T) {
 	if err := sqlDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM schema_migrations").Scan(&applied); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if applied < 3 {
-		t.Errorf("expected at least 3 migrations recorded, got %d", applied)
+	if applied < 5 {
+		t.Errorf("expected at least 5 migrations recorded, got %d", applied)
 	}
 }
 
@@ -325,7 +325,7 @@ func TestConsumeRefreshTokenIsSingleUseUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := q.ConsumeRefreshToken(ctx, "refresh-hash")
+			_, err := q.ConsumeRefreshTokenWithRetry(ctx, "refresh-hash")
 			errs <- err
 		}()
 	}
@@ -346,5 +346,34 @@ func TestConsumeRefreshTokenIsSingleUseUnderConcurrency(t *testing.T) {
 	}
 	if successes != 1 || spent != attempts-1 {
 		t.Fatalf("concurrent consume successes=%d spent=%d, want 1 and %d", successes, spent, attempts-1)
+	}
+}
+
+func TestNextSyncCursorIsMonotonic(t *testing.T) {
+	ctx := context.Background()
+	sqlDB := openTestDB(t)
+	if err := Migrate(ctx, sqlDB); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	q := New(sqlDB)
+
+	first, err := q.NextSyncCursor(ctx, 5000)
+	if err != nil {
+		t.Fatalf("first cursor: %v", err)
+	}
+	second, err := q.NextSyncCursor(ctx, 5000)
+	if err != nil {
+		t.Fatalf("second cursor: %v", err)
+	}
+	backward, err := q.NextSyncCursor(ctx, 4000)
+	if err != nil {
+		t.Fatalf("backward cursor: %v", err)
+	}
+
+	if second != first+1 {
+		t.Fatalf("same-ms cursor = %d after %d, want +1", second, first)
+	}
+	if backward != second+1 {
+		t.Fatalf("backward-clock cursor = %d after %d, want +1", backward, second)
 	}
 }
