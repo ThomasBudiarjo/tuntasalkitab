@@ -21,4 +21,3 @@ CREATE TABLE IF NOT EXISTS reading_progress (
 -- Index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_progress_user ON reading_progress(user_id);
 CREATE INDEX IF NOT EXISTS idx_progress_day ON reading_progress(day_of_year);
-
