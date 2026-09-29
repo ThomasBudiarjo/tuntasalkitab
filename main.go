@@ -151,9 +151,9 @@ func main() {
 	}
 	googleVerifier := auth.NewGoogleVerifier(os.Getenv("GOOGLE_CLIENT_ID"))
 
-	h := handlers.New(queries, templates)
-	authHandler := handlers.NewAuthHandler(queries, store)
-	apiHandler := handlers.NewAPIHandler(queries, signer, googleVerifier)
+	h := handlers.New(sqlDB, queries, templates)
+	authHandler := handlers.NewAuthHandler(sqlDB, queries, store)
+	apiHandler := handlers.NewAPIHandler(sqlDB, queries, signer, googleVerifier)
 	sessionMiddleware := middleware.NewSessionMiddleware(store, queries)
 	apiAuth := middleware.NewAPIAuth(signer)
 

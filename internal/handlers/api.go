@@ -35,6 +35,7 @@ const maxRequestBytes = 1 << 20 // 1 MiB
 // mobile client cannot hold that cookie across Google sign-in, so these
 // endpoints authenticate with a bearer token instead and speak JSON.
 type APIHandler struct {
+	sqlDB    *sql.DB
 	queries  *db.Queries
 	signer   *auth.Signer
 	google   googleVerifier
@@ -42,8 +43,9 @@ type APIHandler struct {
 	planEtag string
 }
 
-func NewAPIHandler(queries *db.Queries, signer *auth.Signer, google googleVerifier) *APIHandler {
+func NewAPIHandler(sqlDB *sql.DB, queries *db.Queries, signer *auth.Signer, google googleVerifier) *APIHandler {
 	return &APIHandler{
+		sqlDB:    sqlDB,
 		queries:  queries,
 		signer:   signer,
 		google:   google,
@@ -276,7 +278,15 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		touched[item.DayOfYear] = true
 	}
 
-	changedAt, err := h.queries.NextSyncCursor(r.Context(), h.now().UnixMilli())
+	tx, err := h.sqlDB.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save progress")
+		return
+	}
+	defer tx.Rollback()
+	qtx := h.queries.WithTx(tx)
+
+	changedAt, err := qtx.NextSyncCursor(r.Context(), h.now().UnixMilli())
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not allocate sync cursor")
 		return
@@ -287,7 +297,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 			completedAt = sql.NullTime{Time: time.UnixMilli(item.UpdatedAt).UTC(), Valid: true}
 		}
 
-		if err := h.queries.UpsertProgressIfNewer(r.Context(), db.UpsertProgressIfNewerParams{
+		if err := qtx.UpsertProgressIfNewer(r.Context(), db.UpsertProgressIfNewerParams{
 			UserID:      userID,
 			DayOfYear:   int64(item.DayOfYear),
 			Completed:   sql.NullBool{Bool: item.Completed, Valid: true},
@@ -300,7 +310,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	rows, err := h.queries.GetProgress(r.Context(), userID)
+	rows, err := qtx.GetProgress(r.Context(), userID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not read progress")
 		return
@@ -311,6 +321,11 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		if touched[int(row.DayOfYear)] {
 			echo = append(echo, row)
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not save progress")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, progressResponse{

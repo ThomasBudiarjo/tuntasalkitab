@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -58,7 +59,7 @@ func newTestAPIWithGoogle(t *testing.T, google googleVerifier) *testAPI {
 		t.Fatalf("signer: %v", err)
 	}
 
-	apiHandler := NewAPIHandler(queries, signer, google)
+	apiHandler := NewAPIHandler(sqlDB, queries, signer, google)
 	apiAuth := middleware.NewAPIAuth(signer)
 
 	r := chi.NewRouter()
@@ -345,6 +346,59 @@ func TestPushCursorDoesNotSkipPeerChangeInSameMillisecond(t *testing.T) {
 	}
 	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 10 {
 		t.Fatalf("delta after peer same-ms push = %+v, want day 10", delta.Items)
+	}
+}
+
+func TestWebsiteToggleUsesSyncCursorAfterAPIClockAdvanced(t *testing.T) {
+	api := newTestAPI(t)
+	ctx := context.Background()
+	user, err := api.queries.CreateUser(ctx, db.CreateUserParams{
+		GoogleID: sql.NullString{String: "g-web-toggle", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := api.tokenFor(t, user.ID)
+
+	future := time.Now().Add(time.Hour).UnixMilli()
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(future) }
+	rec := api.do(t, http.MethodGet, "/api/v1/progress?since=0", token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("initial pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var initial progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &initial); err != nil {
+		t.Fatalf("decode initial pull: %v", err)
+	}
+
+	templates := template.Must(template.New("test").Parse(`{{define "day_item"}}ok{{end}}`))
+	webHandler := New(api.sqlDB, api.queries, templates)
+	web := chi.NewRouter()
+	web.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), "userID", user.ID)))
+		})
+	})
+	web.Post("/toggle/{day}", webHandler.ToggleDay)
+
+	req := httptest.NewRequest(http.MethodPost, "/toggle/12", nil)
+	webRec := httptest.NewRecorder()
+	web.ServeHTTP(webRec, req)
+	if webRec.Code != http.StatusOK {
+		t.Fatalf("web toggle: %d %s", webRec.Code, webRec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(future + 1) }
+	rec = api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/progress?since=%d", initial.ServerTime), token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("delta pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var delta progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
+		t.Fatalf("decode delta: %v", err)
+	}
+	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 12 {
+		t.Fatalf("delta after web toggle = %+v, want day 12", delta.Items)
 	}
 }
 

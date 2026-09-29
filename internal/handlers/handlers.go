@@ -15,12 +15,14 @@ import (
 )
 
 type Handler struct {
+	sqlDB     *sql.DB
 	queries   *db.Queries
 	templates *template.Template
 }
 
-func New(queries *db.Queries, templates *template.Template) *Handler {
+func New(sqlDB *sql.DB, queries *db.Queries, templates *template.Template) *Handler {
 	return &Handler{
+		sqlDB:     sqlDB,
 		queries:   queries,
 		templates: templates,
 	}
@@ -177,7 +179,15 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	progress, err := h.queries.GetProgressByDay(r.Context(), db.GetProgressByDayParams{
+	tx, err := h.sqlDB.BeginTx(r.Context(), nil)
+	if err != nil {
+		http.Error(w, "Database error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+	qtx := h.queries.WithTx(tx)
+
+	progress, err := qtx.GetProgressByDay(r.Context(), db.GetProgressByDayParams{
 		UserID:    userID,
 		DayOfYear: int64(dayOfYear),
 	})
@@ -198,7 +208,13 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		completedAt = sql.NullTime{Time: now, Valid: true}
 	}
 
-	err = h.queries.UpsertProgress(r.Context(), db.UpsertProgressParams{
+	changedAt, err := qtx.NextSyncCursor(r.Context(), now.UnixMilli())
+	if err != nil {
+		http.Error(w, "Failed to update progress", http.StatusInternalServerError)
+		return
+	}
+
+	err = qtx.UpsertProgress(r.Context(), db.UpsertProgressParams{
 		UserID:      userID,
 		DayOfYear:   int64(dayOfYear),
 		Completed:   sql.NullBool{Bool: newCompleted, Valid: true},
@@ -206,9 +222,13 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		// Without this the app's delta pull would never see changes made on
 		// the website, since it asks for rows newer than its cursor.
 		UpdatedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
-		ChangedAt: sql.NullInt64{Int64: now.UnixMilli(), Valid: true},
+		ChangedAt: sql.NullInt64{Int64: changedAt, Valid: true},
 	})
 	if err != nil {
+		http.Error(w, "Failed to update progress", http.StatusInternalServerError)
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		http.Error(w, "Failed to update progress", http.StatusInternalServerError)
 		return
 	}

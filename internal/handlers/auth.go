@@ -27,6 +27,7 @@ const (
 )
 
 type AuthHandler struct {
+	sqlDB       *sql.DB
 	queries     *db.Queries
 	store       *sessions.CookieStore
 	oauthConfig *oauth2.Config
@@ -44,7 +45,7 @@ func newOAuthState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(raw), nil
 }
 
-func NewAuthHandler(queries *db.Queries, store *sessions.CookieStore) *AuthHandler {
+func NewAuthHandler(sqlDB *sql.DB, queries *db.Queries, store *sessions.CookieStore) *AuthHandler {
 	config := &oauth2.Config{
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
@@ -54,6 +55,7 @@ func NewAuthHandler(queries *db.Queries, store *sessions.CookieStore) *AuthHandl
 	}
 
 	return &AuthHandler{
+		sqlDB:         sqlDB,
 		queries:       queries,
 		store:         store,
 		oauthConfig:   config,
@@ -215,14 +217,25 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 // The guest's rows are deleted before the guest itself: reading_progress
 // references users(id), and leaving them behind would orphan them.
 func (h *AuthHandler) mergeGuestInto(r *http.Request, guestID, userID int64) error {
-	if err := h.queries.MergeProgress(r.Context(), guestID, userID, time.Now().UnixMilli()); err != nil {
+	tx, err := h.sqlDB.BeginTx(r.Context(), nil)
+	if err != nil {
+		return fmt.Errorf("begin merge: %w", err)
+	}
+	defer tx.Rollback()
+	qtx := h.queries.WithTx(tx)
+
+	changedAt, err := qtx.NextSyncCursor(r.Context(), time.Now().UnixMilli())
+	if err != nil {
+		return fmt.Errorf("allocate sync cursor: %w", err)
+	}
+	if err := qtx.MergeProgress(r.Context(), guestID, userID, changedAt); err != nil {
 		return fmt.Errorf("copy progress: %w", err)
 	}
-	if err := h.queries.DeleteProgressForUser(r.Context(), guestID); err != nil {
+	if err := qtx.DeleteProgressForUser(r.Context(), guestID); err != nil {
 		return fmt.Errorf("clear guest progress: %w", err)
 	}
-	if err := h.queries.DeleteUser(r.Context(), guestID); err != nil {
+	if err := qtx.DeleteUser(r.Context(), guestID); err != nil {
 		return fmt.Errorf("delete guest: %w", err)
 	}
-	return nil
+	return tx.Commit()
 }
