@@ -239,11 +239,12 @@ func (h *APIHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
 }
 
 // PushProgress applies a batch of local changes and echoes the authoritative
-// state of exactly the days that were sent.
+// progress state covered by the returned cursor.
 //
 // Conflicts resolve last-write-wins on updatedAt, with ties going to whatever
-// the server already holds. The echo is what lets the client clear its pending
-// flags: it learns not just that the push landed, but which of its rows lost.
+// the server already holds. Because the response includes a server cursor, it
+// must also include every row the cursor advances past; the plan is only 365
+// days, so returning the user's current state keeps the protocol simple.
 func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.APIUserID(r.Context())
 	if !ok {
@@ -263,7 +264,6 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	touched := make(map[int]bool, len(body.Items))
 	for _, item := range body.Items {
 		if item.DayOfYear < 1 || item.DayOfYear > 365 {
 			writeError(w, http.StatusBadRequest,
@@ -275,7 +275,6 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 				fmt.Sprintf("day %d has no updatedAt", item.DayOfYear))
 			return
 		}
-		touched[item.DayOfYear] = true
 	}
 
 	tx, err := h.sqlDB.BeginTx(r.Context(), nil)
@@ -316,13 +315,6 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	echo := make([]db.ReadingProgress, 0, len(touched))
-	for _, row := range rows {
-		if touched[int(row.DayOfYear)] {
-			echo = append(echo, row)
-		}
-	}
-
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, "could not save progress")
 		return
@@ -330,7 +322,7 @@ func (h *APIHandler) PushProgress(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, progressResponse{
 		ServerTime: changedAt,
-		Items:      toItems(echo),
+		Items:      toItems(rows),
 	})
 }
 

@@ -181,8 +181,8 @@ func TestProgressRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &pushed); err != nil {
 		t.Fatalf("decode push response: %v", err)
 	}
-	if len(pushed.Items) != 1 {
-		t.Fatalf("push echoed %d items, want 1", len(pushed.Items))
+	if len(pushed.Items) != 2 {
+		t.Fatalf("push echoed %d items, want 2", len(pushed.Items))
 	}
 	if pushed.ServerTime <= 0 {
 		t.Error("push did not return a server time to use as the next cursor")
@@ -399,6 +399,57 @@ func TestWebsiteToggleUsesSyncCursorAfterAPIClockAdvanced(t *testing.T) {
 	}
 	if len(delta.Items) != 1 || delta.Items[0].DayOfYear != 12 {
 		t.Fatalf("delta after web toggle = %+v, want day 12", delta.Items)
+	}
+}
+
+func TestPushEchoIncludesRowsCoveredByReturnedCursor(t *testing.T) {
+	api := newTestAPI(t)
+	user, err := api.queries.CreateUser(context.Background(), db.CreateUserParams{
+		GoogleID: sql.NullString{String: "g-post-cursor", Valid: true},
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	token := api.tokenFor(t, user.ID)
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(1_000) }
+	rec := api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 20, "completed": true, "updatedAt": 20_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("seed push: %d %s", rec.Code, rec.Body.String())
+	}
+
+	api.apiHandler.now = func() time.Time { return time.UnixMilli(2_000) }
+	rec = api.do(t, http.MethodPost, "/api/v1/progress", token, map[string]any{
+		"items": []map[string]any{{"dayOfYear": 1, "completed": true, "updatedAt": 1_000}},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("second push: %d %s", rec.Code, rec.Body.String())
+	}
+
+	var pushed progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &pushed); err != nil {
+		t.Fatalf("decode push: %v", err)
+	}
+	got := map[int]bool{}
+	for _, item := range pushed.Items {
+		got[item.DayOfYear] = item.Completed
+	}
+	if !got[1] || !got[20] || len(got) != 2 {
+		t.Fatalf("push echo items = %+v, want authoritative days 1 and 20", pushed.Items)
+	}
+
+	rec = api.do(t, http.MethodGet, fmt.Sprintf("/api/v1/progress?since=%d", pushed.ServerTime), token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("follow-up pull: %d %s", rec.Code, rec.Body.String())
+	}
+	var delta progressResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &delta); err != nil {
+		t.Fatalf("decode follow-up pull: %v", err)
+	}
+	if len(delta.Items) != 0 {
+		t.Fatalf("follow-up pull returned %+v, want no rows skipped by the push cursor", delta.Items)
 	}
 }
 
