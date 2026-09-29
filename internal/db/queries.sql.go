@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const countCompletedDays = `-- name: CountCompletedDays :one
@@ -40,6 +41,22 @@ func (q *Queries) CreateAnonymousUser(ctx context.Context) (User, error) {
 	return i, err
 }
 
+const createRefreshToken = `-- name: CreateRefreshToken :exec
+INSERT INTO refresh_tokens (token_hash, user_id, expires_at)
+VALUES (?, ?, ?)
+`
+
+type CreateRefreshTokenParams struct {
+	TokenHash string    `json:"token_hash"`
+	UserID    int64     `json:"user_id"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, createRefreshToken, arg.TokenHash, arg.UserID, arg.ExpiresAt)
+	return err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (google_id, email, name)
 VALUES (?, ?, ?)
@@ -65,6 +82,42 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteExpiredRefreshTokens = `-- name: DeleteExpiredRefreshTokens :exec
+DELETE FROM refresh_tokens WHERE expires_at < CURRENT_TIMESTAMP
+`
+
+func (q *Queries) DeleteExpiredRefreshTokens(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteExpiredRefreshTokens)
+	return err
+}
+
+const deleteProgressForUser = `-- name: DeleteProgressForUser :exec
+DELETE FROM reading_progress WHERE user_id = ?
+`
+
+func (q *Queries) DeleteProgressForUser(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteProgressForUser, userID)
+	return err
+}
+
+const deleteRefreshToken = `-- name: DeleteRefreshToken :exec
+DELETE FROM refresh_tokens WHERE token_hash = ?
+`
+
+func (q *Queries) DeleteRefreshToken(ctx context.Context, tokenHash string) error {
+	_, err := q.db.ExecContext(ctx, deleteRefreshToken, tokenHash)
+	return err
+}
+
+const deleteRefreshTokensForUser = `-- name: DeleteRefreshTokensForUser :exec
+DELETE FROM refresh_tokens WHERE user_id = ?
+`
+
+func (q *Queries) DeleteRefreshTokensForUser(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteRefreshTokensForUser, userID)
+	return err
+}
+
 const deleteUser = `-- name: DeleteUser :exec
 DELETE FROM users WHERE id = ?
 `
@@ -75,7 +128,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const getProgress = `-- name: GetProgress :many
-SELECT id, user_id, day_of_year, completed, completed_at FROM reading_progress WHERE user_id = ?
+SELECT id, user_id, day_of_year, completed, completed_at, updated_at FROM reading_progress WHERE user_id = ?
 `
 
 func (q *Queries) GetProgress(ctx context.Context, userID int64) ([]ReadingProgress, error) {
@@ -93,6 +146,7 @@ func (q *Queries) GetProgress(ctx context.Context, userID int64) ([]ReadingProgr
 			&i.DayOfYear,
 			&i.Completed,
 			&i.CompletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -108,7 +162,7 @@ func (q *Queries) GetProgress(ctx context.Context, userID int64) ([]ReadingProgr
 }
 
 const getProgressByDay = `-- name: GetProgressByDay :one
-SELECT id, user_id, day_of_year, completed, completed_at FROM reading_progress WHERE user_id = ? AND day_of_year = ?
+SELECT id, user_id, day_of_year, completed, completed_at, updated_at FROM reading_progress WHERE user_id = ? AND day_of_year = ?
 `
 
 type GetProgressByDayParams struct {
@@ -125,12 +179,13 @@ func (q *Queries) GetProgressByDay(ctx context.Context, arg GetProgressByDayPara
 		&i.DayOfYear,
 		&i.Completed,
 		&i.CompletedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getProgressByDayRange = `-- name: GetProgressByDayRange :many
-SELECT id, user_id, day_of_year, completed, completed_at FROM reading_progress 
+SELECT id, user_id, day_of_year, completed, completed_at, updated_at FROM reading_progress
 WHERE user_id = ? AND day_of_year >= ? AND day_of_year <= ?
 `
 
@@ -155,6 +210,7 @@ func (q *Queries) GetProgressByDayRange(ctx context.Context, arg GetProgressByDa
 			&i.DayOfYear,
 			&i.Completed,
 			&i.CompletedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -167,6 +223,67 @@ func (q *Queries) GetProgressByDayRange(ctx context.Context, arg GetProgressByDa
 		return nil, err
 	}
 	return items, nil
+}
+
+const getProgressSince = `-- name: GetProgressSince :many
+SELECT id, user_id, day_of_year, completed, completed_at, updated_at FROM reading_progress
+WHERE user_id = ? AND COALESCE(updated_at, 0) > ?
+ORDER BY updated_at
+`
+
+type GetProgressSinceParams struct {
+	UserID    int64         `json:"user_id"`
+	UpdatedAt sql.NullInt64 `json:"updated_at"`
+}
+
+// Rows changed since a cursor, for the mobile client's delta pull.
+// COALESCE guards rows written before updated_at existed, which would otherwise
+// compare as NULL and silently never sync.
+func (q *Queries) GetProgressSince(ctx context.Context, arg GetProgressSinceParams) ([]ReadingProgress, error) {
+	rows, err := q.db.QueryContext(ctx, getProgressSince, arg.UserID, arg.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReadingProgress{}
+	for rows.Next() {
+		var i ReadingProgress
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DayOfYear,
+			&i.Completed,
+			&i.CompletedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRefreshToken = `-- name: GetRefreshToken :one
+SELECT token_hash, user_id, created_at, expires_at
+FROM refresh_tokens WHERE token_hash = ?
+`
+
+func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error) {
+	row := q.db.QueryRowContext(ctx, getRefreshToken, tokenHash)
+	var i RefreshToken
+	err := row.Scan(
+		&i.TokenHash,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
@@ -203,20 +320,6 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
-const mergeUserProgress = `-- name: MergeUserProgress :exec
-UPDATE reading_progress SET user_id = ? WHERE user_id = ?
-`
-
-type MergeUserProgressParams struct {
-	UserID   int64 `json:"user_id"`
-	UserID_2 int64 `json:"user_id_2"`
-}
-
-func (q *Queries) MergeUserProgress(ctx context.Context, arg MergeUserProgressParams) error {
-	_, err := q.db.ExecContext(ctx, mergeUserProgress, arg.UserID, arg.UserID_2)
-	return err
-}
-
 const updateUserGoogleID = `-- name: UpdateUserGoogleID :exec
 UPDATE users SET google_id = ?, email = ?, name = ? WHERE id = ?
 `
@@ -239,18 +342,20 @@ func (q *Queries) UpdateUserGoogleID(ctx context.Context, arg UpdateUserGoogleID
 }
 
 const upsertProgress = `-- name: UpsertProgress :exec
-INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at)
-VALUES (?, ?, ?, ?)
+INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
 ON CONFLICT(user_id, day_of_year) DO UPDATE SET
     completed = excluded.completed,
-    completed_at = excluded.completed_at
+    completed_at = excluded.completed_at,
+    updated_at = excluded.updated_at
 `
 
 type UpsertProgressParams struct {
-	UserID      int64        `json:"user_id"`
-	DayOfYear   int64        `json:"day_of_year"`
-	Completed   sql.NullBool `json:"completed"`
-	CompletedAt sql.NullTime `json:"completed_at"`
+	UserID      int64         `json:"user_id"`
+	DayOfYear   int64         `json:"day_of_year"`
+	Completed   sql.NullBool  `json:"completed"`
+	CompletedAt sql.NullTime  `json:"completed_at"`
+	UpdatedAt   sql.NullInt64 `json:"updated_at"`
 }
 
 func (q *Queries) UpsertProgress(ctx context.Context, arg UpsertProgressParams) error {
@@ -259,6 +364,39 @@ func (q *Queries) UpsertProgress(ctx context.Context, arg UpsertProgressParams) 
 		arg.DayOfYear,
 		arg.Completed,
 		arg.CompletedAt,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
+const upsertProgressIfNewer = `-- name: UpsertProgressIfNewer :exec
+INSERT INTO reading_progress (user_id, day_of_year, completed, completed_at, updated_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(user_id, day_of_year) DO UPDATE SET
+    completed = excluded.completed,
+    completed_at = excluded.completed_at,
+    updated_at = excluded.updated_at
+WHERE excluded.updated_at > COALESCE(reading_progress.updated_at, 0)
+`
+
+type UpsertProgressIfNewerParams struct {
+	UserID      int64         `json:"user_id"`
+	DayOfYear   int64         `json:"day_of_year"`
+	Completed   sql.NullBool  `json:"completed"`
+	CompletedAt sql.NullTime  `json:"completed_at"`
+	UpdatedAt   sql.NullInt64 `json:"updated_at"`
+}
+
+// Last-write-wins upsert: the incoming row only lands if it is strictly newer
+// than what is stored. A tie leaves the server's row alone, which makes the
+// server the tiebreaker and keeps a retried push idempotent.
+func (q *Queries) UpsertProgressIfNewer(ctx context.Context, arg UpsertProgressIfNewerParams) error {
+	_, err := q.db.ExecContext(ctx, upsertProgressIfNewer,
+		arg.UserID,
+		arg.DayOfYear,
+		arg.Completed,
+		arg.CompletedAt,
+		arg.UpdatedAt,
 	)
 	return err
 }

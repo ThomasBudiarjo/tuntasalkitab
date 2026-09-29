@@ -202,6 +202,9 @@ func (h *Handler) ToggleDay(w http.ResponseWriter, r *http.Request) {
 		DayOfYear:   int64(dayOfYear),
 		Completed:   sql.NullBool{Bool: newCompleted, Valid: true},
 		CompletedAt: completedAt,
+		// Without this the app's delta pull would never see changes made on
+		// the website, since it asks for rows newer than its cursor.
+		UpdatedAt: sql.NullInt64{Int64: time.Now().UnixMilli(), Valid: true},
 	})
 	if err != nil {
 		http.Error(w, "Failed to update progress", http.StatusInternalServerError)
