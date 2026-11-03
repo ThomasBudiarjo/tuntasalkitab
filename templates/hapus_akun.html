@@ -1,0 +1,53 @@
+{{define "hapus_akun"}}
+<article class="page-card">
+  {{if .Deleted}}
+  <h2>Akun Anda sudah dihapus</h2>
+  <p>
+    Akun Tuntas Alkitab Anda beserta seluruh progres bacaannya sudah dihapus dari
+    server kami, untuk situs maupun aplikasi Android. Anda juga sudah keluar di
+    peramban ini.
+  </p>
+  <p>
+    Di aplikasi Android, progres yang tersimpan di perangkat tetap ada sampai
+    Anda keluar dari akun di Pengaturan › Akun atau menghapus aplikasi.
+  </p>
+  <p><a href="/" class="btn btn-secondary">Kembali ke Tuntas Alkitab</a></p>
+  {{else}}
+  <h2>Hapus akun dan data</h2>
+  <p>Menghapus akun Tuntas Alkitab akan menghapus dari server kami secara permanen:</p>
+  <ul>
+    <li>akun Anda: nama, alamat email, dan ID akun Google;</li>
+    <li>seluruh progres bacaan pada akun itu.</li>
+  </ul>
+  <p>
+    Ini berlaku untuk situs tuntasalkitab.com dan aplikasi Android Tuntas Alkitab,
+    karena keduanya memakai akun yang sama. Penghapusan tidak bisa dibatalkan.
+  </p>
+  <p>
+    Progres yang hanya tersimpan di perangkat Android Anda tetap ada sampai Anda
+    keluar dari akun di Pengaturan › Akun atau menghapus aplikasi.
+  </p>
+
+  {{if .User.GoogleID.Valid}}
+  <div class="page-panel">
+    <p>Anda masuk sebagai <strong>{{.User.Email.String}}</strong>.</p>
+    <form method="post" action="/hapus-akun">
+      <input type="hidden" name="csrf_token" value="{{.CSRFToken}}" />
+      <button type="submit" class="btn btn-danger">Hapus akun dan semua data</button>
+    </form>
+  </div>
+  {{else}}
+  <div class="page-panel">
+    <p>Masuk dengan akun Google yang ingin Anda hapus untuk melanjutkan.</p>
+    <a href="/auth/google?next=/hapus-akun" class="btn btn-primary">Masuk dengan Google</a>
+  </div>
+  {{end}}
+
+  <p class="page-meta">
+    Ada pertanyaan? Hubungi
+    <a href="mailto:contact@tuntasalkitab.com">contact@tuntasalkitab.com</a>.
+    Lihat juga <a href="/privasi">Kebijakan Privasi</a>.
+  </p>
+  {{end}}
+</article>
+{{end}}

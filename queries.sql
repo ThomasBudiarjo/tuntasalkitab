@@ -43,3 +43,6 @@ UPDATE reading_progress SET user_id = ? WHERE user_id = ?;
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = ?;
 
+-- name: DeleteUserProgress :exec
+DELETE FROM reading_progress WHERE user_id = ?;
+

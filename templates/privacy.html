@@ -1,0 +1,210 @@
+{{define "privasi"}}
+<article class="page-card">
+  <h2>Kebijakan Privasi Tuntas Alkitab</h2>
+  <p class="page-meta">Berlaku sejak: 3 November 2026</p>
+
+  <p>
+    Situs tuntasalkitab.com ("situs") dan aplikasi Android Tuntas Alkitab
+    ("aplikasi") dikelola oleh Thomas Budiarjo. Kebijakan ini menjelaskan data
+    apa yang disimpan dan dikirim oleh situs dan aplikasi, dan apa yang bisa Anda
+    lakukan dengannya.
+  </p>
+
+  <h3>Ringkasnya</h3>
+  <ul>
+    <li>
+      Di aplikasi, tanpa akun, semua data tetap di perangkat Anda. Aplikasi tidak
+      mengirim apa pun lewat internet.
+    </li>
+    <li>
+      Di situs, centang bacaan Anda disimpan di server kami, terhubung dengan
+      sebuah cookie sesi, juga bila Anda tidak masuk.
+    </li>
+    <li>
+      Bila Anda masuk dengan Google, situs dan aplikasi menyimpan nama, alamat
+      email, ID akun Google, dan progres bacaan Anda di server kami supaya
+      progres tersinkron antara situs dan aplikasi.
+    </li>
+    <li>
+      Tidak ada iklan, tidak ada analitik, tidak ada pelacakan, dan data Anda
+      tidak dijual atau dibagikan kepada pihak lain.
+    </li>
+  </ul>
+
+  <h3>Situs tuntasalkitab.com</h3>
+  <ul>
+    <li>
+      <strong>Cookie sesi</strong>: saat pertama kali membuka situs, Anda
+      mendapat cookie bernama <code>bible-tracker</code> yang berlaku satu tahun.
+      Cookie ini hanya berisi nomor akun Anda di situs dan data teknis untuk
+      proses masuk dan keamanan formulir, ditandatangani supaya tidak bisa
+      dipalsukan, dan hanya dikirim ke tuntasalkitab.com.
+    </li>
+    <li>
+      <strong>Tanpa masuk</strong>: situs membuat akun tanpa nama yang hanya
+      terhubung dengan cookie tersebut. Hari yang Anda centang, beserta waktunya,
+      disimpan di server pada akun itu. Akun ini tidak berisi nama, email, atau
+      data lain tentang Anda.
+    </li>
+    <li>
+      <strong>Masuk dengan Google</strong>: situs meminta Google mengirimkan
+      <strong>nama, alamat email, dan ID akun Google</strong> Anda, lalu
+      menyimpannya untuk membuat atau menghubungkan akun Anda. Progres yang sudah
+      Anda centang tanpa masuk digabungkan ke akun itu.
+    </li>
+    <li>
+      <strong>Di peramban Anda</strong>: situs menyimpan pilihan tampilan
+      (mode daftar atau tautan) dan status pemberitahuan yang sudah Anda tutup di
+      penyimpanan lokal peramban. Data ini tidak dikirim ke server.
+    </li>
+    <li>
+      <strong>Pustaka dari pihak ketiga</strong>: halaman situs memuat pustaka
+      htmx dari unpkg.com, sehingga peramban Anda menghubungi unpkg.com saat
+      membuka situs. Tidak ada data akun atau progres yang dikirim ke sana.
+    </li>
+  </ul>
+
+  <h3>Aplikasi Android</h3>
+  <p>Data yang disimpan di perangkat:</p>
+  <ul>
+    <li>
+      <strong>Progres bacaan</strong>: hari mana dalam rencana yang sudah Anda
+      tandai selesai, beserta waktunya.
+    </li>
+    <li>
+      <strong>Pengaturan</strong>: tema, warna dinamis, tampilan bacaan,
+      pengingat dan jamnya, serta status perkenalan aplikasi.
+    </li>
+    <li>
+      <strong>Bila Anda masuk</strong>: nama, alamat email, dan ID akun Anda di
+      Tuntas Alkitab, beserta token masuk. Data ini disimpan terenkripsi dengan
+      Android Keystore.
+    </li>
+  </ul>
+  <p>
+    Teks Alkitab (AYT) dan rencana bacaan sudah ada di dalam aplikasi; membacanya
+    tidak mengirim data apa pun.
+  </p>
+  <p>Data yang dikirim, hanya bila Anda masuk dengan Google:</p>
+  <ul>
+    <li>
+      <strong>Saat masuk</strong>, aplikasi meminta Google (melalui layanan
+      Google di perangkat Anda) sebuah token identitas dan mengirimkannya ke
+      layanan sinkronisasi kami di api.tuntasalkitab.com. Dari token itu server
+      membaca <strong>nama, alamat email, dan ID akun Google</strong> Anda untuk
+      membuat atau menghubungkan akun yang sama dengan akun Anda di situs.
+    </li>
+    <li>
+      <strong>Saat sinkronisasi</strong>, aplikasi mengirim dan menerima
+      <strong>progres per hari</strong> (nomor hari, selesai atau belum, dan
+      waktu perubahan), serta mengambil rencana bacaan terbaru.
+    </li>
+    <li>
+      Token masuk aplikasi berlaku paling lama 30 hari dan tidak disimpan di
+      server.
+    </li>
+    <li>
+      Bila Anda sudah punya progres di perangkat sebelum masuk, progres itu
+      digabungkan ke akun yang Anda pakai untuk masuk.
+    </li>
+  </ul>
+  <p>
+    <strong>Cadangan Android</strong>: bila Pencadangan Android aktif di
+    perangkat Anda, Android dapat menyimpan progres bacaan dan pengaturan
+    aplikasi ke cadangan akun Google Anda, dan memulihkannya di perangkat baru.
+    Token masuk dan data akun tidak ikut dicadangkan; setelah pemulihan Anda
+    perlu masuk lagi. Cadangan ini dikelola oleh Android dan Google, bukan oleh
+    pengelola.
+  </p>
+  <p>Hal lain yang Anda mulai sendiri di aplikasi:</p>
+  <ul>
+    <li>
+      <strong>Kirim masukan</strong> membuka aplikasi email Anda dengan alamat
+      contact@tuntasalkitab.com; isinya, ditambah versi aplikasi dan versi
+      Android, baru terkirim bila Anda mengirimnya.
+    </li>
+    <li>
+      <strong>Bagikan</strong> dan <strong>Salin</strong> ayat hanya meneruskan
+      teks yang Anda pilih ke aplikasi tujuan pilihan Anda.
+    </li>
+    <li>
+      Tautan ke <strong>SABDA</strong> (alkitab.sabda.org),
+      <strong>tuntasalkitab.com</strong>, dan halaman lisensi dibuka di peramban;
+      situs-situs itu memiliki kebijakan privasi masing-masing.
+    </li>
+    <li><strong>Pengingat</strong> dan <strong>widget</strong> bekerja sepenuhnya di perangkat.</li>
+  </ul>
+  <p>
+    Aplikasi tidak menampilkan iklan, tidak memakai ID iklan, tidak memakai
+    analitik atau pelaporan kerusakan, dan tidak mengakses lokasi, kontak,
+    kamera, atau berkas Anda.
+  </p>
+
+  <h3>Di server</h3>
+  <p>
+    Situs dan layanan sinkronisasi aplikasi memakai basis data yang sama. Isinya
+    per akun: ID akun Google, alamat email, nama, waktu akun dibuat, dan progres
+    per hari (selesai atau belum, beserta waktu selesai). Semua pengiriman memakai
+    koneksi terenkripsi (HTTPS).
+  </p>
+  <p>
+    Situs dan basis data dijalankan oleh penyedia layanan hosting yang memproses
+    data atas nama kami. Seperti umumnya server web, setiap permintaan dicatat di
+    log server (alamat halaman, waktu, alamat IP, dan kode hasil) untuk menjaga
+    layanan tetap berjalan; log ini tidak dipakai untuk melacak Anda.
+  </p>
+  <p>
+    Penggunaan data oleh Google saat Anda masuk diatur oleh
+    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Kebijakan Privasi Google</a>.
+  </p>
+
+  <h3>Berapa lama data disimpan</h3>
+  <p>
+    Data akun dan progres bacaan disimpan sampai Anda menghapus akun di
+    <a href="/hapus-akun">tuntasalkitab.com/hapus-akun</a>; saat itu data
+    tersebut dihapus dari basis data kami. Salinan di log dan cadangan penyedia
+    layanan hilang sesuai jadwal penyedia tersebut.
+  </p>
+
+  <h3>Menghapus data</h3>
+  <ul>
+    <li>
+      <strong>Akun dan data di server</strong>: kunjungi
+      <a href="/hapus-akun">tuntasalkitab.com/hapus-akun</a>, atau buka
+      Pengaturan › Akun › "Hapus akun dan data" di aplikasi, untuk menghapus akun
+      beserta seluruh progres bacaannya, baik untuk situs maupun aplikasi.
+    </li>
+    <li>
+      <strong>Data di perangkat</strong>: menghapus aplikasi (atau menghapus data
+      aplikasi di Pengaturan Android) menghapus semua data aplikasi di perangkat.
+      Keluar dari akun di Pengaturan › Akun juga menghapus progres yang tersimpan
+      di perangkat.
+    </li>
+    <li>
+      <strong>Progres tanpa masuk di situs</strong>: progres ini tidak terhubung
+      dengan identitas Anda. Bila ingin menghapusnya, hubungi kami.
+    </li>
+  </ul>
+
+  <h3>Anak-anak</h3>
+  <p>
+    Tuntas Alkitab dapat dipakai oleh semua umur dan tidak ditujukan khusus untuk
+    anak-anak. Kami tidak dengan sengaja mengumpulkan data pribadi anak-anak;
+    masuk dengan Google mengikuti batas usia akun Google. Bila Anda orang tua atau
+    wali dan yakin anak Anda telah memberikan data pribadi kepada kami, hubungi
+    kami supaya data itu kami hapus.
+  </p>
+
+  <h3>Perubahan kebijakan</h3>
+  <p>
+    Bila kebijakan ini berubah, versi terbaru akan dimuat di halaman ini dengan
+    tanggal berlaku yang baru.
+  </p>
+
+  <h3>Kontak</h3>
+  <p>
+    Pertanyaan tentang privasi:
+    <a href="mailto:contact@tuntasalkitab.com">contact@tuntasalkitab.com</a>
+  </p>
+</article>
+{{end}}

@@ -28,11 +28,22 @@ func New(queries *db.Queries, templates *template.Template) *Handler {
 
 type PageData struct {
 	User            db.User
+	Page            string // selects the main template in layout.html; empty is the tracker
 	MonthInfo       reading.MonthInfo
 	CompletedCount  int64
 	ProgressPercent int
 	MissedCount     int
 	Announcement    Announcement
+}
+
+// infoPage is the data for the text pages that share layout.html with the
+// tracker. Announcement stays nil: the plan notice belongs on the tracker only.
+type infoPage struct {
+	User         db.User
+	Page         string
+	Announcement *Announcement
+	CSRFToken    string
+	Deleted      bool
 }
 
 // announcementID is stored client-side once the reader dismisses the notice.
@@ -148,6 +159,13 @@ func (h *Handler) Index(w http.ResponseWriter, r *http.Request) {
 
 	setNoStore(w)
 	h.templates.ExecuteTemplate(w, "layout.html", data)
+}
+
+func (h *Handler) Privacy(w http.ResponseWriter, r *http.Request) {
+	user, _ := h.queries.GetUserByID(r.Context(), getUserIDFromContext(r))
+
+	setNoStore(w)
+	h.templates.ExecuteTemplate(w, "layout.html", infoPage{User: user, Page: "privasi"})
 }
 
 func (h *Handler) GetMonth(w http.ResponseWriter, r *http.Request) {

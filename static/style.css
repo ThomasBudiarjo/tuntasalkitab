@@ -428,6 +428,85 @@ details.missed-card[open] .missed-chevron {
     font-size: 0.75rem;
 }
 
+.footer-links a {
+    color: inherit;
+}
+
+.footer-links a:hover {
+    color: var(--color-primary);
+}
+
+/* Text pages (privacy, account deletion) - body never scrolls, the card does */
+.page-card {
+    background: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 1.25rem;
+    font-size: 0.9375rem;
+    line-height: 1.65;
+}
+
+.page-card h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 0.25rem;
+}
+
+.page-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 1.5rem 0 0.5rem;
+}
+
+.page-card p,
+.page-card ul {
+    margin-bottom: 0.75rem;
+}
+
+.page-card ul {
+    padding-left: 1.25rem;
+}
+
+.page-card li {
+    margin-bottom: 0.375rem;
+}
+
+.page-card a:not(.btn) {
+    color: var(--color-primary);
+}
+
+.page-meta {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+}
+
+.page-panel {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg);
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.page-panel .btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
+}
+
+.btn-danger {
+    background: #b91c1c;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #991b1b;
+}
+
 /* Tablet and up (min-width: 640px) */
 @media (min-width: 640px) {
     html {
