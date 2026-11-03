@@ -74,6 +74,15 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const deleteUserProgress = `-- name: DeleteUserProgress :exec
+DELETE FROM reading_progress WHERE user_id = ?
+`
+
+func (q *Queries) DeleteUserProgress(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteUserProgress, userID)
+	return err
+}
+
 const getProgress = `-- name: GetProgress :many
 SELECT id, user_id, day_of_year, completed, completed_at FROM reading_progress WHERE user_id = ?
 `

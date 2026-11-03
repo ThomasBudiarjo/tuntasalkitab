@@ -138,10 +138,19 @@
       </div>
     </div>
 
-    <main class="container">{{template "content" .}}</main>
+    <main class="container">
+      {{if eq .Page "privasi"}}{{template "privasi" .}}
+      {{else if eq .Page "hapus-akun"}}{{template "hapus_akun" .}}
+      {{else}}{{template "content" .}}{{end}}
+    </main>
 
     <footer class="footer">
       <p>Menamatkan Alkitab dalam satu tahun</p>
+      <p class="footer-links">
+        <a href="/privasi">Privasi</a> &middot;
+        <a href="/hapus-akun">Hapus akun</a> &middot;
+        <a href="mailto:contact@tuntasalkitab.com">contact@tuntasalkitab.com</a>
+      </p>
     </footer>
 
     <script>

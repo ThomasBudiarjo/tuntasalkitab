@@ -135,6 +135,7 @@ func main() {
 
 	h := handlers.New(queries, templates)
 	authHandler := handlers.NewAuthHandler(queries, store)
+	accountHandler := handlers.NewAccountHandler(sqlDB, queries, store, templates)
 	sessionMiddleware := middleware.NewSessionMiddleware(store, queries)
 
 	r := chi.NewRouter()
@@ -151,6 +152,10 @@ func main() {
 		r.Get("/month", h.GetMonth)
 		r.Get("/missed", h.GetMissedDays)
 		r.Post("/toggle/{day}", h.ToggleDay)
+
+		r.Get("/privasi", h.Privacy)
+		r.Get("/hapus-akun", accountHandler.DeletePage)
+		r.Post("/hapus-akun", accountHandler.Delete)
 
 		r.Get("/auth/google", authHandler.GoogleLogin)
 		r.Get("/auth/google/callback", authHandler.GoogleCallback)

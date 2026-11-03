@@ -14,6 +14,9 @@ import (
 	"golang.org/x/oauth2/google"
 )
 
+// loginNextKey holds the path GoogleCallback redirects to after login.
+const loginNextKey = "loginNext"
+
 type AuthHandler struct {
 	queries     *db.Queries
 	store       *sessions.CookieStore
@@ -41,6 +44,16 @@ func (h *AuthHandler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Google OAuth not configured", http.StatusServiceUnavailable)
 		return
 	}
+
+	// Only the deletion page asks to come back after login; any other value
+	// falls back to "/" so this cannot become an open redirect.
+	session, _ := h.store.Get(r, "bible-tracker")
+	if r.URL.Query().Get("next") == "/hapus-akun" {
+		session.Values[loginNextKey] = "/hapus-akun"
+	} else {
+		delete(session.Values, loginNextKey)
+	}
+	session.Save(r, w)
 
 	state := "random-state" // In production, use a secure random string
 	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
@@ -79,6 +92,11 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	session, _ := h.store.Get(r, "bible-tracker")
+	next := "/"
+	if v, _ := session.Values[loginNextKey].(string); v == "/hapus-akun" {
+		next = v
+	}
+	delete(session.Values, loginNextKey)
 
 	existingUser, err := h.queries.GetUserByGoogleID(r.Context(), sql.NullString{String: userInfo.ID, Valid: true})
 	if err == nil {
@@ -91,7 +109,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		}
 		session.Values["userID"] = existingUser.ID
 		session.Save(r, w)
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+		http.Redirect(w, r, next, http.StatusTemporaryRedirect)
 		return
 	}
 
@@ -104,7 +122,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 		})
 		if err == nil {
 			session.Save(r, w)
-			http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+			http.Redirect(w, r, next, http.StatusTemporaryRedirect)
 			return
 		}
 	}
@@ -121,7 +139,7 @@ func (h *AuthHandler) GoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	session.Values["userID"] = user.ID
 	session.Save(r, w)
-	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	http.Redirect(w, r, next, http.StatusTemporaryRedirect)
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
