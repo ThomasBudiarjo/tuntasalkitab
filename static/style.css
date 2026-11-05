@@ -436,7 +436,7 @@ details.missed-card[open] .missed-chevron {
     color: var(--color-primary);
 }
 
-/* Text pages (privacy, account deletion) - body never scrolls, the card does */
+/* Text pages (privacy, account deletion, close test) - body never scrolls, the card does */
 .page-card {
     background: var(--color-surface);
     border-radius: var(--radius-lg);
@@ -464,11 +464,13 @@ details.missed-card[open] .missed-chevron {
 }
 
 .page-card p,
-.page-card ul {
+.page-card ul,
+.page-card ol {
     margin-bottom: 0.75rem;
 }
 
-.page-card ul {
+.page-card ul,
+.page-card ol {
     padding-left: 1.25rem;
 }
 
@@ -496,6 +498,100 @@ details.missed-card[open] .missed-chevron {
 .page-panel .btn {
     padding: 0.625rem 1rem;
     font-size: 0.875rem;
+}
+
+/* Close Test signup */
+.signup-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.signup-form[hidden] {
+    display: none;
+}
+
+.signup-label {
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+.signup-input {
+    width: 100%;
+    padding: 0.75rem;
+    font-family: inherit;
+    font-size: 1rem; /* 16px+ keeps iOS from zooming on focus */
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.signup-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(45, 90, 74, 0.15);
+}
+
+.signup-input[aria-invalid="true"] {
+    border-color: #b91c1c;
+}
+
+.page-card .signup-hint {
+    color: var(--color-text-muted);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    margin-bottom: 0.25rem;
+}
+
+.page-card .signup-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    margin-bottom: 0;
+}
+
+.page-panel .signup-submit {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    font-size: 0.9375rem;
+}
+
+.signup-submit:disabled {
+    opacity: 0.7;
+    cursor: wait;
+}
+
+.signup-success {
+    background: var(--color-notice-bg);
+    border: 1px solid var(--color-notice-border);
+    color: var(--color-notice-text);
+    border-radius: var(--radius-md);
+    padding: 1rem;
+    outline: none;
+}
+
+.signup-success-icon {
+    width: 2.25rem;
+    height: 2.25rem;
+    color: var(--color-accent);
+    margin-bottom: 0.5rem;
+}
+
+.page-card .signup-success h3 {
+    margin: 0 0 0.375rem;
+    color: var(--color-primary);
+}
+
+.page-card .signup-success ul {
+    margin-bottom: 0;
+}
+
+#close-test-success-email {
+    overflow-wrap: anywhere;
 }
 
 .btn-danger {

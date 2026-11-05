@@ -1,0 +1,158 @@
+{{define "close_test"}}
+<article class="page-card">
+  <h2>Ikut Close Test Tuntas Alkitab</h2>
+
+  <p>
+    Aplikasi Tuntas Alkitab untuk Android sudah hampir siap. Sebelum bisa
+    dirilis di Google Play, aplikasinya perlu dicoba dulu lewat Close Test.
+    Mau ikut mencoba? Daftarkan email akun Google Anda di bawah ini.
+  </p>
+
+  <div class="page-panel">
+    <form
+      id="close-test-form"
+      class="signup-form"
+      method="post"
+      action="https://formstash.tuntasalkitab.com/f/close-test"
+      novalidate
+    >
+      <label for="close-test-email" class="signup-label">Email akun Google</label>
+      <input
+        type="email"
+        id="close-test-email"
+        name="email"
+        class="signup-input"
+        placeholder="nama@gmail.com"
+        autocomplete="email"
+        inputmode="email"
+        autocapitalize="off"
+        spellcheck="false"
+        required
+        aria-describedby="close-test-hint"
+      />
+      <p id="close-test-hint" class="signup-hint">
+        Pakai akun Google yang sama dengan di Play Store.
+      </p>
+
+      <input type="text" name="_gotcha" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-10000px">
+
+      <p id="close-test-error" class="signup-error" role="alert" hidden></p>
+
+      <button type="submit" class="btn btn-primary signup-submit" id="close-test-submit">
+        Daftar Close Test
+      </button>
+    </form>
+
+    <div id="close-test-success" class="signup-success" role="status" tabindex="-1" hidden>
+      <div class="signup-success-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
+          <path d="M8 12.5l2.5 2.5L16 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h3>Terima kasih, pendaftaran Anda sudah masuk</h3>
+      <p>
+        Dalam 1–2 hari kami kirim tautan undangan ke
+        <strong id="close-test-success-email"></strong>. Kalau belum masuk,
+        cek folder Spam atau Promosi.
+      </p>
+      <ul>
+        <li>Buka tautannya dengan akun Google yang sama dengan di Play Store.</li>
+        <li>
+          <strong>Setelah dipasang, jangan hapus aplikasinya selama 14 hari.</strong>
+          Ini syarat dari Google supaya Tuntas Alkitab bisa dirilis di Google Play.
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>Cara ikut</h3>
+  <ol>
+    <li>Daftarkan email akun Google Anda.</li>
+    <li>Dalam 1–2 hari, kami kirim tautan undangan ke email Anda.</li>
+    <li>Buka tautan itu di HP Android, terima undangannya, lalu pasang aplikasinya dari Play Store.</li>
+    <li>
+      <strong>Biarkan aplikasinya terpasang selama 14 hari, jangan dihapus.</strong>
+      Ini syarat dari Google supaya aplikasi bisa dirilis di Google Play.
+    </li>
+  </ol>
+
+  <p class="page-meta">
+    Email Anda hanya kami pakai untuk undangan Close Test. Ada pertanyaan?
+    Hubungi <a href="mailto:contact@tuntasalkitab.com">contact@tuntasalkitab.com</a>.
+  </p>
+</article>
+
+<script>
+(function () {
+  var form = document.getElementById("close-test-form");
+  var email = document.getElementById("close-test-email");
+  var submit = document.getElementById("close-test-submit");
+  var error = document.getElementById("close-test-error");
+  var success = document.getElementById("close-test-success");
+  var submitLabel = submit.textContent;
+
+  function showError(message) {
+    error.textContent = message;
+    error.hidden = false;
+    email.setAttribute("aria-invalid", "true");
+  }
+
+  function clearError() {
+    error.hidden = true;
+    error.textContent = "";
+    email.removeAttribute("aria-invalid");
+  }
+
+  email.addEventListener("input", clearError);
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearError();
+
+    var value = email.value.trim();
+    if (!value || !email.checkValidity()) {
+      showError("Masukkan alamat email yang valid, misalnya nama@gmail.com.");
+      email.focus();
+      return;
+    }
+
+    var payload = { email: value, _gotcha: form.elements._gotcha.value };
+
+    submit.disabled = true;
+    submit.textContent = "Mengirim…";
+
+    fetch(form.action, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (res) {
+        if (res.status === 201) {
+          document.getElementById("close-test-success-email").textContent = value;
+          form.hidden = true;
+          success.hidden = false;
+          success.focus();
+          return;
+        }
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (res.status === 422 && body.errors && body.errors.email) {
+            showError("Alamat email tidak valid. Periksa lagi dan coba kirim ulang.");
+          } else if (res.status === 429) {
+            showError("Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.");
+          } else {
+            showError("Pendaftaran gagal dikirim. Coba lagi beberapa saat lagi.");
+          }
+        });
+      })
+      .catch(function () {
+        showError("Tidak bisa terhubung ke server. Periksa koneksi internet Anda lalu coba lagi.");
+      })
+      .finally(function () {
+        submit.disabled = false;
+        submit.textContent = submitLabel;
+      });
+  });
+})();
+</script>
+{{end}}
