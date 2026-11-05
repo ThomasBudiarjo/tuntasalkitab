@@ -586,7 +586,7 @@ details.missed-card[open] .missed-chevron {
     color: var(--color-primary);
 }
 
-.page-card .signup-success ul {
+.page-card .signup-success p:last-child {
     margin-bottom: 0;
 }
 
