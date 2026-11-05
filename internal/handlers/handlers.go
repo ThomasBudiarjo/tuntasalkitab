@@ -168,6 +168,13 @@ func (h *Handler) Privacy(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "layout.html", infoPage{User: user, Page: "privasi"})
 }
 
+func (h *Handler) CloseTest(w http.ResponseWriter, r *http.Request) {
+	user, _ := h.queries.GetUserByID(r.Context(), getUserIDFromContext(r))
+
+	setNoStore(w)
+	h.templates.ExecuteTemplate(w, "layout.html", infoPage{User: user, Page: "close-test"})
+}
+
 func (h *Handler) GetMonth(w http.ResponseWriter, r *http.Request) {
 	userID := getUserIDFromContext(r)
 

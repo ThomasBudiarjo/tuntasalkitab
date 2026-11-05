@@ -154,6 +154,8 @@ func main() {
 		r.Post("/toggle/{day}", h.ToggleDay)
 
 		r.Get("/privasi", h.Privacy)
+		r.Get("/close-test", h.CloseTest)
+		r.Get("/uji-tertutup", http.RedirectHandler("/close-test", http.StatusMovedPermanently).ServeHTTP)
 		r.Get("/hapus-akun", accountHandler.DeletePage)
 		r.Post("/hapus-akun", accountHandler.Delete)
 
